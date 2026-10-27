@@ -1,0 +1,3045 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>S.ABCD</title>
+<meta name="description" content="S.ABCD – xoay, nhìn và cắt hình không gian kiểu SGK">
+<meta name="theme-color" content="#0f1420">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="S.ABCD">
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: rgba(22, 30, 46, 0.92);
+    --text: #e8eef9;
+    --muted: #8a99b3;
+    --accent: #ffcc4d;
+    --btn: #1f2a40;
+    --btn-on: #ffcc4d;
+    --sec: #ff8a4d;   /* màu thiết diện */
+    --con: #4dd6a8;   /* màu đối tượng tự dựng */
+    /* nút nổi trên vùng hình (Vở, Góc đẹp, Danh sách, Hoàn tác / Làm lại, bánh xe): nền + viền rõ (≥ 3:1 với nền) –
+       index.html đặt lại từ theme.js (float) khi đổi chế độ */
+    --float-bg: rgba(31, 42, 64, 0.94); --float-border: #6b7da0; --float-text: #e8eef9;
+    --dot-ring: #0f1420;
+    /* Hệ chuyển động chung (khớp motion.js): 3 mức thời lượng, ease-out mềm, ease-in (đóng), lò xo của bảng */
+    --d-fast: 150ms; --d-mid: 250ms; --d-slow: 350ms;
+    --ease: cubic-bezier(0.32, 0.72, 0, 1); --ease-in: cubic-bezier(0.4, 0, 1, 1); --spring: cubic-bezier(0.34, 1.25, 0.64, 1);
+  }
+  /* Giảm chuyển động: mọi chuyển động tắt (tức thì) */
+  @media (prefers-reduced-motion: reduce) { :root { --d-fast: 0ms; --d-mid: 0ms; --d-slow: 0ms; } }
+  body.fx-none { --d-fast: 0ms; --d-mid: 0ms; --d-slow: 0ms; }
+  @keyframes fade-in { from { opacity: 0; } }
+  @keyframes rise-in { from { opacity: 0; transform: translateY(10px); } }
+  @keyframes drop-in { from { opacity: 0; transform: translateY(-10px); } }
+  @keyframes menu-in { from { opacity: 0; transform: scale(0.92); } }
+  @keyframes item-in { from { opacity: 0; transform: translateY(8px); } }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  /* Icon SVG nét mảnh (icons.js): nét luôn 2px dù icon to nhỏ, màu theo chữ */
+  svg.i { width: 20px; height: 20px; flex: none; display: inline-block; vertical-align: -4px; overflow: visible; }
+  svg.i * { vector-effect: non-scaling-stroke; }
+  .round svg.i { width: 22px; height: 22px; }
+  #pill svg.i { width: 16px; height: 16px; opacity: 0.75; }
+  .swatch { flex: none; width: 14px; height: 14px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25); }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  #stage { position: fixed; inset: 0; }
+  #stage canvas { display: block; touch-action: none; }
+  /* Lớp nhãn nằm đè lên canvas nhưng không chặn cử chỉ chạm */
+  #labels { position: absolute; inset: 0; pointer-events: none; }
+  .vlabel {
+    font: 700 20px/1 "Times New Roman", Georgia, serif;
+    font-style: italic;
+    color: var(--accent);
+    text-shadow: 0 0 4px #000, 0 0 8px #000;
+    user-select: none;
+  }
+  /* Trên cùng: nút tròn Vở (trái), Góc đẹp + Danh sách (phải); giữa là viên thuốc tên đối tượng đang chọn.
+     Không có dòng trạng thái: vùng hình dùng trọn màn. */
+  #top {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 3;
+    display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px 48px; gap: 8px; align-items: start;
+    padding: calc(8px + env(safe-area-inset-top)) 10px 0;
+    pointer-events: none;
+  }
+  #top > button, #pill { pointer-events: auto; }
+  .round {
+    width: 48px; height: 48px; border: 1.5px solid var(--float-border); border-radius: 50%; padding: 0;
+    display: grid; place-items: center; font-size: 20px;
+    background: var(--float-bg); color: var(--float-text); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+  .round:active { transform: scale(0.94); }
+  .round.on { color: var(--accent); border-color: var(--accent); }
+  #btn-book { grid-column: 1; }
+  .top-mid { grid-column: 2; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+  /* Viên thuốc: tên đối tượng vừa chọn, tự mờ sau ~2,5 s; có nút thao tác nhanh (≥ 44px); chạm để mở menu của nó */
+  #pill {
+    max-width: 100%; min-height: 44px; padding: 4px 10px; border: 1.5px solid var(--float-border); border-radius: 22px;
+    background: var(--float-bg); color: var(--accent); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    font: 600 13px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; text-align: center;
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    transition: opacity var(--d-mid) var(--ease-in), transform var(--d-mid) var(--ease-in); cursor: pointer; user-select: none;
+    overflow-wrap: anywhere;
+  }
+  #pill[hidden] { display: none; }
+  #pill:not([hidden]) { animation: drop-in var(--d-mid) var(--ease); }   /* trượt xuống + hiện dần */
+  /* Vòng đếm ngược quanh viên thuốc khi duyệt ứng viên (tools.js, chạm lặp): nét mảnh chạy hết một vòng trong thời gian chốt */
+  #pill { position: relative; }
+  #pill .pill-ring { position: absolute; inset: -3px; width: calc(100% + 6px); height: calc(100% + 6px); overflow: visible; pointer-events: none; }
+  #pill .pill-ring rect { width: calc(100% - 2px); height: calc(100% - 2px); fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round;
+    stroke-dasharray: 1; stroke-dashoffset: 1; animation: pill-ring linear forwards; }
+  @keyframes pill-ring { to { stroke-dashoffset: 0; } }
+  #pill.dwelling { cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) { #pill .pill-ring rect { animation-timing-function: steps(8, end); } }
+  #pill.fade { opacity: 0; transform: translateY(-8px); pointer-events: none; }
+  #pill.inert { cursor: default; }
+  #pill .pill-title {
+    display: block; max-width: 100%; font-size: 12.5px; line-height: 1.2;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  #pill .pill-acts {
+    display: flex; align-items: center; justify-content: center; gap: 2px;
+  }
+  #pill .pill-btn {
+    width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0;
+    border: none; border-radius: 50%; background: transparent; color: var(--float-text);
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  #pill .pill-btn:active { background: rgba(255, 255, 255, 0.14); transform: scale(0.92); }
+  body.paper #pill .pill-btn:active { background: rgba(0, 0, 0, 0.08); }
+  #pill .pill-btn svg.i { width: 20px; height: 20px; opacity: 0.9; }
+  #pill .pill-t { font: 700 14px/1 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body:is(.wizard, .unfolding, .playing, .present) #pill,
+  body:is(.wizard, .unfolding, .playing, .present) :is(#btn-book, #btn-list) { display: none; }
+  body.wizard #btn-reset { display: none; }
+  .cur-shape { margin: 0; font-size: 13.5px; color: var(--muted); }
+  .cur-shape b { color: var(--text); }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); }
+  .legend span::before {
+    content: ""; display: inline-block; width: 22px; height: 0;
+    vertical-align: middle; margin-right: 6px;
+    border-top: 2px solid var(--text);
+  }
+  .legend .hid::before { border-top: 2px dashed #7f97bd; }
+  .brand {
+    align-self: flex-start;
+    font: italic 700 13px/1 "Times New Roman", Georgia, serif;
+    letter-spacing: 0.12em; color: var(--accent);
+    border: 1px dashed var(--accent); border-radius: 6px; padding: 4px 8px;
+  }
+  .help { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+  .copy { margin: 6px 0 0; font-size: 12px; color: var(--muted); text-align: center; }
+  /* Khối dưới cùng: bảng trượt (bottom sheet) + dòng hướng dẫn + thanh tab. Khối này nằm DƯỚI
+     vùng hình (JS đẩy #stage lên theo chiều cao của nó) nên không nuốt cử chỉ xoay/zoom/pan. */
+  nav {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 2;
+    display: flex; flex-direction: column;
+    touch-action: manipulation;
+  }
+  nav .row { display: flex; gap: 8px; }
+  nav button, nav .row select {
+    flex: 1 1 0; min-width: 0; min-height: 44px;
+    border: 0; border-radius: 12px;
+    background: var(--btn); color: var(--text);
+    font-size: 14px; font-weight: 600;
+  }
+  /* Nút có icon + chữ: icon trước chữ, giữa nút */
+  nav button, #pmenu button, #exp button, #p2d button, #present-exit, #hist button, .round {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  nav .choice { display: block; }
+  nav button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--btn); }
+  nav button.on { background: var(--btn-on); color: #1a1a1a; }
+  nav button:active { transform: scale(0.97); }
+  nav button:disabled { opacity: 0.4; }
+
+  #sheet {
+    display: none; flex-direction: column; max-height: 45dvh;
+    background: var(--panel); border-radius: 18px 18px 0 0;
+    /* bóng thứ hai phủ khe hở khi lò xo vượt nhẹ lên trên chỗ đứng */
+    box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.35), 0 40px 0 0 var(--panel);
+  }
+  #sheet.open, #sheet.closing { display: flex; }
+  /* Mở / đóng bảng: trượt (cả bản free lẫn pro): lên bằng lò xo, xuống bằng ease-in; thanh tab và dòng hướng dẫn
+     nằm TRÊN bảng (z-index) nên bảng trượt ra từ phía sau chúng */
+  #sheet.open { animation: sheet-in var(--d-slow) var(--spring); }
+  #sheet.closing { animation: sheet-down var(--d-mid) var(--ease-in) forwards; }
+  @keyframes sheet-in { from { transform: translateY(100%); } }
+  @keyframes sheet-down { from { transform: translateY(var(--drag, 0px)); } to { transform: translateY(100%); } }
+  #sheet.vheight { transition: height var(--d-mid) var(--ease); overflow: hidden; }
+  /* Làm nóng lúc app vừa tải: dựng bảng ẩn, không chiếm chỗ, không nhận chạm (xem warmSheet) */
+  #sheet.warm { display: flex; position: absolute; left: 0; right: 0; bottom: 0; visibility: hidden; pointer-events: none; animation: none; }
+  .sheet-body { transition: opacity var(--d-fast) var(--ease); }
+  .sheet-body.swap { opacity: 0; transition-duration: calc(var(--d-fast) * 0.6); }
+  .stag { animation: item-in var(--d-mid) var(--ease) both; animation-delay: calc(var(--i, 0) * 20ms); }
+  /* Thanh kéo "viên nang" (capsule-slider.js): rãnh bo tròn hai đầu cao 44px, phần đã kéo "rót" từ trái sang, núm viên nang hiện giá trị.
+     Màu theo --range (thiết diện: cam, điểm dựng: xanh, còn lại: màu nhấn). Kéo chỉ đổi transform của núm và phần đã kéo.
+     Tương phản ≥ 3:1 ở cả nền tối lẫn Giấy vở (test-slider.js tính từ các biến màu này). */
+  .cs { --range: var(--accent); --cs-rail: var(--btn); position: relative; display: block; height: 44px; min-width: 0; touch-action: pan-y;
+    cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; outline: none; }
+  body.paper .cs { --cs-rail: #fffdf7; }
+  .cs-rail { position: absolute; inset: 2px 0; box-sizing: border-box; overflow: hidden; border-radius: 20px; background: var(--cs-rail); border: 1.5px solid var(--muted); }
+  .cs-fill { position: absolute; inset: 0; border-radius: 20px; background: var(--range); will-change: transform; }
+  .cs-tick { position: absolute; top: 50%; width: 2px; height: 12px; margin: -6px 0 0 -1px; border-radius: 1px; background: var(--muted); box-shadow: 0 0 0 1px var(--cs-rail); pointer-events: none; }
+  .cs-knob { position: absolute; left: 0; top: 3px; bottom: 3px; width: 46px; box-sizing: border-box; display: grid; place-items: center; border-radius: 999px;
+    background: var(--text); color: var(--bg); border: 2px solid var(--cs-rail); will-change: transform; pointer-events: none; }
+  .cs-val { font: 700 13px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cs.glide .cs-knob, .cs.glide .cs-fill { transition: transform 180ms var(--ease); }
+  .cs.spring .cs-knob { transition: transform 300ms cubic-bezier(0.3, 1.8, 0.5, 1); }
+  .cs:focus-visible .cs-rail { outline: 2px solid var(--text); outline-offset: 2px; }
+  .cs.off { opacity: 0.45; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .cs .cs-knob, .cs .cs-fill { transition: none !important; } }
+  body.fx-none .cs .cs-knob, body.fx-none .cs .cs-fill { transition: none !important; }
+  .grab {
+    display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 16px;
+    touch-action: none; cursor: grab; flex: none;
+  }
+  .grab::before { content: ""; width: 36px; height: 4px; border-radius: 2px; background: #3a4866; }
+  .grab b { font-size: 14px; color: var(--muted); }
+  .sheet-body {
+    overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
+    padding: 0 16px 12px; display: flex; flex-direction: column; gap: 8px;
+  }
+  .pane { display: none; flex-direction: column; gap: 8px; }
+  .pane.on { display: flex; }
+  .pane h3 { margin: 4px 0 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+
+  /* Dòng hướng dẫn mảnh ngay trên thanh tab: chỉ hiện khi đang dùng công cụ / có thông báo */
+  #strip {
+    position: relative; z-index: 1; display: none; flex-direction: column; gap: 4px; padding: 2px 4px 2px 16px;
+    background: rgba(18, 25, 40, 0.96); border-top: 1px solid #26314a;
+  }
+  body.building #strip, #strip:has(#t-msg:not(:empty)), #strip:has(#t-confirm:not([hidden])), #strip:has(#t-suggest:not([hidden])) { display: flex; animation: rise-in var(--d-mid) var(--ease); }
+  .strip-line { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+  .strip-text { flex: 1 1 auto; min-width: 0; }
+  #t-msg:not(:empty) + #t-hint { display: none; }
+  nav #t-exit { flex: 0 0 44px; background: transparent; color: var(--muted); font-size: 18px; }
+  body:not(.building) #t-exit { display: none; }
+
+  /* Thanh tab: 5 tab to, mỗi lúc một bảng */
+  #tabs {
+    position: relative; z-index: 1; display: flex; gap: 2px; padding: 0 4px env(safe-area-inset-bottom);
+    background: #121a2a; border-top: 1px solid #26314a;
+  }
+  nav #tabs button {
+    min-height: 56px; border-radius: 0; background: transparent; color: var(--muted);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    font-size: 11.5px; line-height: 1;
+  }
+  #tabs button svg.i { width: 22px; height: 22px; }
+  nav #tabs button.on { background: transparent; color: var(--accent); box-shadow: inset 0 2px 0 var(--accent); }
+  body.building #tabs button[data-pane=build] svg.i { color: var(--con); }
+
+  /* Tab Xem: Tự quay (bật/tắt + tốc độ), Trải hình, Thành bước */
+  nav .spin-row { flex-wrap: wrap; }
+  nav .spin-row #spin-go { flex: 1 1 110px; }
+  nav .spin-row .seg { flex: 1 1 auto; }
+  nav .spin-row .seg button { flex: 1 0 auto; }
+  nav .spin-row .seg { flex: 0 0 auto; }
+  nav .spin-row .seg button { min-height: 44px; padding: 0 14px; }
+  nav button.wide { min-height: 52px; font-size: 15px; background: transparent; color: var(--accent); border: 1px dashed var(--accent); }
+  nav button.wide2 { flex: none; }
+
+  /* Hoàn tác / Làm lại: nút nổi nhỏ góc dưới phải vùng hình */
+  #hist { position: fixed; right: 10px; z-index: 2; display: flex; gap: 10px; }
+  #hist button {
+    width: 48px; height: 48px; border: 1.5px solid var(--float-border); border-radius: 50%; padding: 0;
+    background: var(--float-bg); color: var(--float-text);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+  #hist button svg.i { width: 22px; height: 22px; }
+  #hist button { transition: opacity var(--d-fast) var(--ease), transform var(--d-fast) var(--ease), box-shadow var(--d-fast) var(--ease); }
+  #hist button:disabled { opacity: 0.45; box-shadow: none; }
+  body:is(.wizard, .unfolding, .playing) :is(#hist, #tabs, #strip) { display: none; }
+  body:is(.wizard, .unfolding, .playing) #sheet { display: flex; max-height: 62dvh; }
+  body:is(.wizard, .unfolding, .playing) :is(.pane, .grab) { display: none; }
+  body:is(.wizard, .unfolding, .playing) .sheet-body { padding-top: 12px; }
+
+  /* Thành bước › Toàn màn hình: ẩn hàng nút trên, tab, hoàn tác; chỉ còn hình + chữ bước to + 4 nút + Tự quay */
+  #present-exit { display: none; position: fixed; top: calc(8px + env(safe-area-inset-top)); right: 10px; z-index: 4;
+    height: 48px; padding: 0 16px; border: 1.5px solid var(--float-border); border-radius: 24px; font-size: 14px; font-weight: 600;
+    background: var(--float-bg); color: var(--float-text); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+  body.present #present-exit { display: block; }
+  body.present #top, body.present #hist, body.present #play-present, body.present #play-close { display: none; }
+  body.present #play-count { font-size: 15px; }
+  body.present #play-text { font-size: clamp(22px, 5.4vmin, 44px); min-height: 3em; }
+  body.present #play .play-ctl button { min-height: 58px; font-size: 18px; }
+  body.present #sheet { max-height: 52dvh; }
+  /* Điện thoại cầm ngang: bảng thấp hơn, chữ vừa phải để hình còn chỗ */
+  @media (orientation: landscape) and (max-height: 520px) {
+    body.present #sheet { max-height: 44dvh; }
+    body.present #play { gap: 6px; }
+    body.present #play-text { font-size: clamp(18px, 4.6vmin, 30px); min-height: 2.2em; }
+    body.present #play .play-ctl button { min-height: 44px; font-size: 16px; }
+    body.present .grab { display: none; }
+  }
+
+  /* Thành bước: chữ mô tả bước to, 4 nút ⏮ ◀ ▶ ⏭ */
+  #play { display: none; flex-direction: column; gap: 10px; }
+  body.playing #play { display: flex; }
+  body.playing #wiz { display: none; }
+  nav :is(#play-close, #play-present, #play-spin) { flex: 0 0 auto; padding: 0 12px; }
+  nav :is(#play-close, #play-spin) { width: 44px; padding: 0; }
+  nav #play-spin.on { background: var(--btn-on); color: #1a1a1a; border-color: transparent; }
+  #play-text { margin: 0; min-height: 2.9em; font-size: 17px; line-height: 1.45; font-weight: 600; }
+  nav .play-ctl #play-first, nav .play-ctl #play-last { flex: 0 0 52px; }
+
+  /* Trải hình: thanh trượt mức mở k + nút Play, dưới là diện tích từng mặt */
+  #unf { display: none; flex-direction: column; gap: 8px; }
+  body.unfolding #unf { display: flex; }
+  body.unfolding #wiz { display: none; }
+  nav :is(#unf-close, #unf-export) { flex: 0 0 auto; padding: 0 14px; }
+  .unf-ctl { align-items: center; }
+  .unf-ctl button { flex: 0 0 52px; }
+  .unf-ctl .cs { flex: 1 1 auto; min-width: 0; }
+  .unf-ctl output { display: none; }   /* giá trị đã hiện trên núm */
+  #unf-info { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--muted); }
+  #unf-info b { color: var(--text); }
+  .alabel { font: 600 13px/1 system-ui, sans-serif; color: #ffd27a; text-shadow: 0 0 4px #000, 0 0 8px #000; user-select: none; }
+
+  /* Hàng hình: Dựng theo đề + hình nhanh; hàng hình gần đây; vuốt ngang được */
+  /* Chip vuốt ngang: cao ≥ 48px, dừng đúng mép chip (snap), mép phải mờ dần khi còn chip phía sau (class more,
+     JS bật theo vị trí cuộn), chữ không bị cắt; chip cuối có chỗ thở để không nằm dưới vùng mờ */
+  nav .row.chips {
+    overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory; scroll-padding-inline: 0; padding-right: 24px;
+  }
+  nav .row.chips.more {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent);
+  }
+  nav .row.chips:empty { display: none; }
+  nav .row.chips::-webkit-scrollbar { display: none; }
+  nav .chips button { flex: 0 0 auto; min-height: 48px; padding: 0 16px; white-space: nowrap; scroll-snap-align: start; }
+  nav .chips button.recent { background: transparent; border: 1px solid var(--btn); color: var(--text); font-weight: 500; }
+
+  /* Wizard dựng hình: thay chỗ bảng chính, hình phía trên là bản xem trước */
+  .stack { display: flex; flex-direction: column; gap: 8px; }
+  .stack { gap: 4px; }
+  #wiz { display: none; flex-direction: column; gap: 8px; }
+  body.wizard #wiz { display: flex; }
+  /* hàng tiêu đề (Trải hình, Thành bước, Dựng theo đề): cột hẹp khi cầm ngang thì nút xuống dòng, không tràn */
+  .wiz-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 8px; }
+  .wiz-top > .row { flex-wrap: wrap; justify-content: flex-end; }
+  .wiz-top b { font-size: 14px; }
+  .wiz-page { display: flex; flex-direction: column; gap: 8px; }
+  .wiz-page[hidden] { display: none; }
+  .seg { display: flex; padding: 3px; border-radius: 10px; background: var(--btn); }
+  nav .seg button { flex: 0 0 auto; min-height: 44px; padding: 0 12px; border-radius: 8px; background: transparent; font-size: 13px; }
+  nav .seg button.on { background: var(--btn-on); color: #1a1a1a; }
+  .cards { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+  .cards::-webkit-scrollbar { display: none; }
+  nav .card {
+    flex: 0 0 80px; min-height: 80px; padding: 6px 4px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    border: 2px solid transparent; font-size: 11.5px; font-weight: 600; line-height: 1.2;
+  }
+  nav .card.on { background: var(--btn); border-color: var(--accent); color: var(--accent); }
+  .card svg { width: 56px; height: 40px; flex: none; }
+  .prm { display: grid; grid-template-columns: 7em 1fr; gap: 8px; align-items: center; font-size: 13.5px; }
+  .prm .cs { width: 100%; }
+  .prm output { display: none; }   /* giá trị đã hiện trên núm */
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  nav .choice { min-height: 60px; padding: 6px 10px; text-align: left; border: 2px solid transparent; }
+  nav .choice.on { background: var(--btn); border-color: var(--accent); color: var(--text); }
+  nav .choice.on b { color: var(--accent); }
+  .choice b { display: block; font-size: 15px; }
+  .choice small { display: block; margin-top: 2px; font-size: 12px; font-weight: 400; color: var(--muted); }
+  .toggles { display: flex; gap: 8px; }
+  /* Công tắc bật/tắt: chữ bên trái, rãnh + núm bên phải */
+  nav .tog { min-height: 44px; font-size: 13.5px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 12px; text-align: left; }
+  nav .tog { position: relative; }
+  nav .tog::after {
+    content: ""; flex: none; width: 40px; height: 24px; border-radius: 12px; background: #7c8aa8;
+    transition: background-color var(--d-mid) var(--ease);
+  }
+  /* núm trượt bằng transform */
+  nav .tog::before {
+    content: ""; position: absolute; right: 32px; top: 50%; width: 16px; height: 16px; margin-top: -8px; border-radius: 50%;
+    background: #fff; transform: translateX(0); transition: transform var(--d-mid) var(--ease), background-color var(--d-mid) var(--ease);
+  }
+  nav .tog[aria-pressed="true"]::before { transform: translateX(16px); background: #1a1a1a; }
+  nav .tog[aria-pressed="true"] { color: var(--accent); }
+  nav .tog[aria-pressed="true"]::after { background: var(--btn-on); }
+  #wiz-err { margin: 0; font-size: 13px; color: #ff8a8a; }
+  #wiz-err:empty { display: none; }
+  nav #wiz-next { background: var(--btn-on); color: #1a1a1a; }
+  /* Màn 1, 2: "Xong" luôn có (dùng mặc định cho các màn sau), "Tiếp" thành nút thường */
+  nav #wiz-done { background: var(--btn-on); color: #1a1a1a; }
+  nav #wiz-done[hidden] { display: none; }
+  nav #wiz-next.sub { background: var(--btn); color: var(--text); }
+
+  /* Chân đường cao H / O */
+  .spt.foot { background: var(--accent); }
+  .spt.foot span { color: var(--accent); }
+
+  /* Chọn 3 điểm M, N, P */
+  #cut { display: flex; flex-direction: column; gap: 6px; }
+  #cut.empty .pt, #cut.empty #btn-cutoff { display: none; }
+  .pt { display: grid; grid-template-columns: 18px minmax(0, 7.2em) 1fr; gap: 8px; align-items: center; }
+  .pt b { font: italic 700 19px/1 "Times New Roman", Georgia, serif; color: var(--sec); }
+  .pt select {
+    height: 44px; min-width: 0; border: 0; border-radius: 10px; padding: 0 6px;
+    background: var(--btn); color: var(--text); font-size: 14px;
+  }
+  .pt .cs { width: 100%; --range: var(--sec); }
+  .pt output { display: none; }   /* giá trị đã hiện trên núm */
+  .pt.is-vertex .cs { visibility: hidden; }
+  nav button.save { flex: 0 0 auto; padding: 0 14px; background: var(--btn-on); color: #1a1a1a; }
+  #sample-text { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text); }
+  #sample-text:empty::before { content: attr(data-empty); color: var(--muted); font-size: 13px; }
+  .recent-box { display: flex; flex-direction: column; gap: 8px; }
+  .recent-box:has(.chips:empty) { display: none; }
+  #cut-msg { margin: 2px 0 0; font-size: 14px; min-height: 2.8em; color: var(--text); }
+  #cut-msg.warn { color: #ff8a8a; }
+  #cut-msg small { display: block; font-size: 12.5px; color: var(--muted); }
+
+  /* Điểm thiết diện: chấm tròn + nhãn lệch lên phải */
+  .spt { width: 9px; height: 9px; border-radius: 50%; background: var(--sec); box-shadow: 0 0 0 2px var(--bg); }
+  .spt.in { background: #fff; }
+  .spt span {
+    position: absolute; left: 8px; bottom: 6px;
+    font: italic 700 19px/1 "Times New Roman", Georgia, serif;
+    color: var(--sec); text-shadow: 0 0 4px #000, 0 0 8px #000;
+  }
+  /* Tự dựng hình: thanh công cụ + dòng hướng dẫn + thanh trượt của điểm đang chọn */
+  #tools { display: flex; flex-direction: column; gap: 8px; }
+  #tool-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  nav .tools button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    min-height: 56px; padding: 4px 2px; font-size: 18px; line-height: 1;
+  }
+  nav .tools button small { font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  nav .tools button svg.i { width: 22px; height: 22px; }
+  nav .tools button.on { background: var(--con); color: #10261f; }
+  #t-mode[hidden], #t-edge[hidden] { display: none; }
+  /* Cách đặt điểm: thanh chọn 3 ô đều nhau, đủ rộng cho chữ */
+  .dwell-row { align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+  .dwell-row .dwell-t { font-size: 13.5px; color: var(--muted); }
+  nav .dwell-row .seg button { padding: 0 10px; }
+  nav .seg.mode { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }
+  nav .seg.mode button { min-height: 44px; padding: 0 4px; font-size: 13.5px; font-weight: 600; white-space: nowrap; }
+  nav #t-mode button.on { background: var(--con); color: #10261f; }
+  #t-hint, #t-msg { margin: 0; font-size: 13px; line-height: 1.35; color: var(--muted); }
+  nav .row.sub button { flex: 0 0 auto; padding: 0 14px; white-space: nowrap; }
+  nav .row.sub .seg { flex: 1 1 auto; min-width: 0; }
+  nav .tools #t-select.on { background: var(--btn-on); color: #1a1a1a; }
+  #t-edge { display: grid; grid-template-columns: 18px auto 1fr; gap: 6px 10px; align-items: center; }
+  #t-edge b { font: italic 700 19px/1 "Times New Roman", Georgia, serif; color: var(--con); }
+  #t-edge output { font-size: 14px; font-variant-numeric: tabular-nums; }
+  #t-edge .cs { width: 100%; --range: var(--con); }
+  #t-edge .quick { grid-column: 1 / -1; display: flex; gap: 8px; }
+  nav #t-edge .quick button { min-height: 44px; font-size: 15px; }
+  nav #t-edge .quick button.on { background: #2b4a42; color: var(--con); }
+  #t-msg { color: var(--text); }
+  #t-confirm { display: flex; gap: 8px; align-items: center; min-height: 44px; padding-right: 8px; font-size: 14px; }
+  #t-confirm[hidden], #t-hint[hidden], #t-msg[hidden] { display: none; }
+  #t-confirm span { flex: 1 1 auto; color: #ffb38a; }
+  nav #t-confirm button { flex: 0 0 auto; padding: 0 14px; }
+  nav #t-yes { background: #c4553a; }
+  #t-msg.warn { color: #ff8a8a; }
+  .spt.con { background: var(--con); }
+  .spt.con span { color: var(--con); }
+  .spt.sel { background: #fff; box-shadow: 0 0 0 3px var(--accent); }
+  .spt.pierce { width: 8px; height: 8px; background: #fff; border: 2px solid; box-shadow: none; }
+  .spt.ring { width: 18px; height: 18px; background: transparent; border: 2px solid var(--accent); box-shadow: none; }
+  .spt.free { width: 13px; height: 13px; background: var(--bg); border: 3px solid var(--con); box-shadow: 0 0 0 2px var(--bg); }
+  .spt.free.sel { background: #fff; border-color: var(--accent); }
+
+  /* Bánh xe độ cao của điểm tự do: dải dọc mép phải vùng hình, vạch nhỏ mỗi 0,25, vạch lớn mỗi 1 */
+  #wheel { position: fixed; top: calc(76px + env(safe-area-inset-top)); right: 8px; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 64px; }
+  #wheel[hidden], body:is(.wizard, .unfolding, .playing, .present) #wheel { display: none; }
+  #wheel:not([hidden]) { animation: fade-in var(--d-mid) var(--ease); }
+  #t-edge:not([hidden]), #t-quick:not([hidden]), #t-suggest:not([hidden]) { animation: item-in var(--d-mid) var(--ease); }
+  #wh-val { font-size: 12px; font-weight: 700; color: var(--text); text-align: center; white-space: nowrap;
+            padding: 2px 6px; border-radius: 8px; background: rgba(31, 42, 64, 0.9); font-variant-numeric: tabular-nums; }
+  #wh-track {
+    --off: 0px;
+    position: relative; width: 44px; height: var(--wh, 200px); border-radius: 14px; touch-action: none; cursor: ns-resize;
+    background-image: linear-gradient(to bottom, #d6e0f2 2px, transparent 2px), linear-gradient(to bottom, #6f7f9f 1px, transparent 1px),
+                      linear-gradient(to bottom, #0f1420, #26314a 50%, #0f1420);
+    background-size: 100% 56px, 20px 14px, 100% 100%;   /* 56px = 1 đơn vị (WHEEL_PX trong tools.js) */
+    background-position: 0 calc(var(--wh, 200px) / 2 + var(--off) - 1px), center calc(var(--wh, 200px) / 2 + var(--off)), 0 0;
+    background-repeat: repeat-y, repeat-y, no-repeat;
+    box-shadow: inset 0 0 0 1px #3a4866, 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+  #wh-track::after { content: ''; position: absolute; left: -4px; right: -4px; top: calc(50% - 1.5px); height: 3px; border-radius: 2px; background: var(--accent); }
+  #wheel button {
+    width: 64px; min-height: 44px; border: 1.5px solid var(--float-border); border-radius: 12px; font-size: 13px; font-weight: 600;
+    background: var(--float-bg); color: var(--float-text); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+  #wheel button.on { background: #ffa24a; color: #1a1a1a; }
+  #wheel button:disabled { opacity: 0.4; }
+  #wheel.compact button { min-height: 44px; font-size: 12px; }
+  #wheel.nowheel :is(#wh-val, #wh-track) { display: none; }
+
+  /* Nút nhanh tên mặt phẳng (Giao tuyến, Giao điểm, Cắt thiết diện): bấm thay cho chạm vào hình */
+  #t-quick[hidden], #t-suggest[hidden] { display: none; }
+  #t-quick, #t-suggest { padding: 0 12px 6px 0; }
+  /* Chip gợi ý giao điểm: viền đứt, chữ màu nhấn – khác nút chọn đối tượng */
+  nav #t-suggest button { border-style: dashed; border-color: var(--accent); color: var(--accent); }
+  nav .quick button {
+    flex: 0 0 auto; min-width: 56px; padding: 0 12px; background: transparent; border: 1px solid #3a4866;
+    font: italic 700 16px/1 "Times New Roman", Georgia, serif;
+  }
+  /* Các thiết diện: mỗi nút một màu, nút đang sửa sáng viền */
+  nav #sec-tabs button { flex: 0 0 auto; padding: 0 14px; background: transparent; border: 1px solid #3a4866;
+    font: italic 700 16px/1 "Times New Roman", Georgia, serif; }
+  nav #sec-tabs button.on { border-width: 2px; border-color: currentColor; background: rgba(255, 255, 255, 0.06); }
+  nav #sec-tabs button.add { font: 600 14px/1 system-ui, sans-serif; color: var(--muted); border-style: dashed; }
+  nav .quick button.on { background: #3a3220; border-color: var(--accent); color: var(--accent); }
+
+  /* Tab Danh sách: mỗi dòng = tên (bấm để chọn) + ẩn/hiện + màu + xoá */
+  #obj-list { display: flex; flex-direction: column; gap: 6px; }
+  #obj-list h3 { margin: 6px 0 0; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+  .li { display: flex; align-items: center; gap: 6px; }
+  /* tên dài (máy hẹp, nhiều nút) thì xuống dòng, không cắt chữ; mô tả nằm dòng dưới */
+  nav .li .li-name {
+    flex: 1 1 auto; min-width: 0; padding: 4px 12px; text-align: left;
+    flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px;
+    background: transparent; border: 1px solid var(--btn); line-height: 1.25; overflow-wrap: anywhere;
+  }
+  .li-name small { font-weight: 500; color: var(--muted); }
+  nav .li .li-name.sel { border-color: var(--accent); color: var(--accent); }
+  .li.off .li-name { opacity: 0.45; }
+  nav .li button.ic { flex: 0 0 44px; padding: 0; font-size: 17px; }
+  .lempty { margin: 4px 0; font-size: 13.5px; color: var(--muted); }
+
+  /* Menu nổi của mặt phẳng */
+  #pmenu {
+    position: fixed; z-index: 5; width: 264px; padding: 10px;
+    display: flex; flex-direction: column; gap: 8px;
+    background: rgba(22, 30, 46, 0.97); border: 1px solid #2b3a59; border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  }
+  #pmenu[hidden], #pmenu [hidden] { display: none; }
+  #pmenu:not([hidden]) { animation: menu-in var(--d-fast) var(--ease); transform-origin: var(--ox, 50%) var(--oy, 0%); }
+  #pm-title { font-size: 14px; }
+  #pm-ask span { display: block; margin-bottom: 8px; font-size: 13.5px; color: #ffb38a; }
+  .pm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  #pmenu button {
+    min-height: 44px; border: 0; border-radius: 10px; background: var(--btn); color: var(--text);
+    font-size: 14px; font-weight: 600; text-align: left; padding: 0 10px; justify-content: flex-start;
+  }
+  #pmenu button:active { transform: scale(0.97); }
+  #pmenu button.danger { background: #c4553a; }
+  #pnote { margin: 0; text-align: center; font-size: 13.5px; font-weight: 600; color: #ffd27a; text-shadow: 0 0 4px #000; }
+  #pnote:empty { display: none; }
+  .mlabel {
+    font: 600 13px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #fff;
+    padding: 2px 6px; border-radius: 6px; background: rgba(15, 20, 32, 0.75); white-space: nowrap; user-select: none;
+  }
+  .plabel {
+    font: italic 700 17px/1 "Times New Roman", Georgia, serif;
+    text-shadow: 0 0 4px #000, 0 0 8px #000; user-select: none; white-space: nowrap;
+  }
+
+  /* Vở bài, Mẫu, Chia sẻ: bảng con của tab Hình, nút to */
+  nav .row.big button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    min-height: 60px; font-size: 22px; line-height: 1;
+  }
+  nav .row.big button small { font-size: 13px; font-weight: 600; }
+  nav .row.big button svg.i { width: 24px; height: 24px; }
+  nav .row.big button[hidden] { display: none; }
+  .field {
+    width: 100%; border: 1px solid #2b3a59; border-radius: 10px; padding: 10px 12px;
+    background: #121a2a; color: var(--text); font: 15px/1.4 system-ui, sans-serif; resize: vertical;
+  }
+  input.field { min-height: 44px; }
+  /* Mã đề (.sabcd): ô chữ có lớp tô đỏ dòng lỗi nằm dưới (cùng chữ, cùng cỡ, chữ trong suốt) */
+  .code-wrap { position: relative; border: 1px solid #2b3a59; border-radius: 10px; background: #121a2a; }
+  #code-hl, #code-in {
+    margin: 0; padding: 10px 12px; font: 14px/1.55 ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace;
+    white-space: pre-wrap; overflow-wrap: anywhere; letter-spacing: 0; tab-size: 2;
+    scrollbar-gutter: stable;   /* thanh cuộn (máy tính) chiếm cùng một chỗ ở cả hai lớp: chữ xuống dòng y hệt nhau */
+  }
+  #code-hl { position: absolute; inset: 0; overflow: hidden; color: transparent; pointer-events: none; }
+  #code-hl mark { color: transparent; background: rgba(255, 107, 107, 0.3); border-radius: 3px; }
+  #code-in {
+    position: relative; display: block; width: 100%; min-height: 150px; max-height: 50vh; resize: vertical; overflow-y: auto;
+    border: 0; border-radius: 10px; background: transparent; color: var(--text);
+  }
+  .code-src { font-size: 12.5px; }
+  .code-msg { display: flex; flex-direction: column; gap: 2px; }
+  .code-msg:empty { display: none; }
+  .code-msg p { margin: 0; font-size: 13.5px; line-height: 1.4; overflow-wrap: anywhere; }
+  .code-msg .err { color: #ff8a8a; }
+  .code-msg .wrn { color: #ffb38a; }
+  .code-msg .res { color: var(--text); font-weight: 600; }
+  nav #code-build { min-height: 48px; }
+  nav .code-btns small { text-align: center; line-height: 1.15; }
+  /* Gõ lệnh (tab Dựng): ô 1–4 dòng + nút Enter, hàng phím ký hiệu 5 × 2 (mỗi phím ≥ 44px) */
+  nav #t-kbd { min-height: 44px; background: transparent; border: 1px solid #3a4866; color: var(--muted); }
+  nav #t-kbd.on { border-color: var(--accent); color: var(--accent); }
+  #t-cmd { display: flex; flex-direction: column; gap: 6px; }
+  #t-cmd[hidden] { display: none; }
+  .cmd-line { display: flex; gap: 6px; align-items: flex-end; }
+  #cmd-in { flex: 1 1 auto; min-width: 0; min-height: 44px; resize: none; font: 15px/1.4 ui-monospace, "SF Mono", Menlo, Consolas, "Roboto Mono", monospace; }
+  nav #cmd-go { flex: 0 0 52px; min-height: 44px; background: var(--con); color: #10261f; }
+  .syms { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  nav .syms button { min-height: 44px; padding: 0; font: 600 19px/1 "Times New Roman", Georgia, serif; background: transparent; border: 1px solid #3a4866; }
+  nav .row .field { flex: 1 1 auto; min-width: 0; width: auto; }
+  nav .row.sub #nb-new { flex: 1 1 auto; }
+  .field:disabled { opacity: 0.45; }
+  .pmsg { margin: 0; font-size: 13.5px; line-height: 1.4; color: var(--muted); }
+  .pmsg:empty { display: none; }
+  .pmsg.warn { color: #ffb38a; }
+  #nb-list { display: flex; flex-direction: column; gap: 6px; }
+  .nb-item { display: flex; align-items: center; gap: 8px; padding: 4px; border: 1px solid var(--btn); border-radius: 12px; }
+  .nb-item.cur { border-color: var(--accent); }
+  .nb-item.broken { border-color: #c4553a; }
+  .nb-thumb { flex: 0 0 64px; height: 48px; border-radius: 8px; background: #121a2a center / cover no-repeat; }
+  nav .nb-item .nb-open {
+    flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 3px;
+    padding: 4px 6px; background: transparent; text-align: left;
+  }
+  .nb-open b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14.5px; }
+  .nb-open small { font-size: 12px; font-weight: 500; color: var(--muted); }
+  .nb-item.cur .nb-open small { color: var(--accent); }
+  nav .nb-item button.ic { flex: 0 0 auto; min-width: 44px; padding: 0 10px; font-size: 14px; }
+  nav button.danger { background: #c4553a; }
+
+  /* Hình phẳng 2D: phủ cả màn, SVG ở giữa, thanh công cụ dưới (cầm ngang: cột phải) */
+  #p2d { position: fixed; inset: 0; z-index: 8; display: flex; flex-direction: column; background: var(--bg); }
+  #p2d[hidden] { display: none; }
+  #p2d:not([hidden]) { animation: fade-in var(--d-mid) var(--ease); }
+  .p2d-top { display: flex; gap: 10px; align-items: baseline; padding: calc(10px + env(safe-area-inset-top)) 14px 4px; }
+  .p2d-top b { font-size: 16px; flex: 0 0 auto; }
+  #p2d-status { font-size: 14px; color: var(--accent); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #p2d-svg { flex: 1 1 auto; min-height: 0; width: 100%; touch-action: none; display: block; }
+  .p2d-label { font: italic 700 19px/1 "Times New Roman", Georgia, serif; fill: var(--accent); paint-order: stroke; stroke: #0f1420; stroke-width: 3px; user-select: none; }
+  .p2d-bar { padding: 8px 10px calc(8px + env(safe-area-inset-bottom)); background: #121a2a; border-top: 1px solid #26314a; display: flex; flex-direction: column; gap: 8px; }
+  #p2d-hint { margin: 0; font-size: 13px; line-height: 1.35; color: var(--muted); min-height: 2.7em; }
+  #p2d-hint.warn { color: #ff8a8a; }
+  .p2d-tools { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .p2d-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  #p2d button {
+    min-height: 44px; border: 0; border-radius: 12px; background: var(--btn); color: var(--text); font-size: 15px; font-weight: 600; padding: 0 8px;
+  }
+  #p2d .p2d-tools button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 17px; line-height: 1; padding: 4px 0; min-width: 0; }
+  #p2d .p2d-tools button small { font-size: 10px; white-space: nowrap; }
+  #p2d .p2d-tools button svg.i { width: 22px; height: 22px; }
+  #p2d .p2d-tools button.on { background: var(--con); color: #10261f; }
+  #p2d .p2d-row button { flex: 1 1 auto; white-space: nowrap; }
+  #p2d .p2d-row button:disabled { opacity: 0.4; }
+  #p2d #p2d-3d { background: var(--accent); color: #1a1a1a; }
+  @media (orientation: landscape) and (max-height: 520px) {
+    #p2d { display: grid; grid-template-columns: 1fr min(42vw, 360px); grid-template-rows: auto 1fr; }
+    #p2d[hidden] { display: none; }
+    .p2d-top { grid-column: 1; }
+    #p2d-svg { grid-column: 1; grid-row: 2; height: 100%; }
+    .p2d-bar { grid-column: 2; grid-row: 1 / span 2; border-top: 0; border-left: 1px solid #26314a; overflow: auto; padding-top: calc(8px + env(safe-area-inset-top)); }
+  }
+
+  /* ---------------- CHẾ ĐỘ GIẤY VỞ (body.paper) ----------------
+     Nền trắng ngà + lưới ô ly cố định theo màn hình (ô lớn 32px, 3 dòng ly mảnh bên trong như vở học sinh),
+     canvas 3D trong suốt đè lên; giao diện tông sáng. Màn hình phẳng 2D giữ tông tối (nét vẽ màu sáng). */
+  body.paper {
+    --bg: #fbf8f1; --panel: rgba(255, 252, 244, 0.97); --text: #1f2430; --muted: #6a7180;
+    --accent: #9a6500; --btn: #ece6d8; --btn-on: #f2c443; --sec: #d0661f; --con: #12805c;
+  }
+  body.paper #stage {
+    background-color: #fbf8f1;
+    background-image:
+      linear-gradient(to right, rgba(110, 120, 140, 0.24) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(110, 120, 140, 0.24) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(110, 120, 140, 0.09) 1px, transparent 1px);
+    background-size: 32px 32px, 32px 32px, 32px 8px;
+  }
+  body.paper #sheet { box-shadow: 0 -4px 16px rgba(60, 50, 20, 0.18), 0 40px 0 0 var(--panel); }
+  body.paper #strip { background: rgba(250, 246, 236, 0.97); border-top-color: #ddd4c0; }
+  body.paper #tabs { background: #f3eee2; border-top-color: #ddd4c0; }
+  body.paper nav #tabs button.on { color: #8a5a00; }
+  body.paper :is(#hist button, #present-exit, #wheel button, #wh-val, .round, #pill) { box-shadow: 0 2px 8px rgba(60, 50, 20, 0.2); }
+  body.paper #wh-val { background: var(--float-bg); color: var(--float-text); }
+  body.paper #wh-track {
+    background-image: linear-gradient(to bottom, #5a6070 2px, transparent 2px), linear-gradient(to bottom, #a0a6b4 1px, transparent 1px),
+                      linear-gradient(to bottom, #fbf8f1, #ece6d8 50%, #fbf8f1);
+    box-shadow: inset 0 0 0 1px #cfc6b2, 0 2px 8px rgba(60, 50, 20, 0.2);
+  }
+  body.paper :is(#pmenu, .dlg-card, .exp-card) { background: #fffcf4; border-color: #ddd4c0; box-shadow: 0 8px 24px rgba(60, 50, 20, 0.25); }
+  body.paper :is(.field, .nb-thumb) { background-color: #fff; color: var(--text); border: 1px solid #ddd4c0; }
+  body.paper nav .tog[aria-pressed="true"] { color: #6b4700; }
+  body.paper nav :is(.tools button.on, #t-mode button.on) { color: #fff; }
+  body.paper nav .tools #t-select.on { color: #1a1a1a; }
+  body.paper nav #t-edge .quick button.on { background: #d3eadf; color: #0b5a40; }
+  body.paper nav .quick button.on { background: #f6e7b8; border-color: var(--accent); color: #6b4700; }
+  body.paper nav .quick button, body.paper nav #sec-tabs button { border-color: #b9ae96; }
+  /* rãnh tắt / bật đạt ≥ 3:1 với nền nút, núm trắng ≥ 3:1 với rãnh */
+  body.paper nav .tog::after { background-color: #7d7461; }
+  body.paper nav .tog[aria-pressed="true"]::after { background-color: #9a6500; }
+  body.paper nav .tog[aria-pressed="true"]::before { background: #fff; }
+  body.paper nav button.ghost { border-color: #d6cdb8; }
+  body.paper .vlabel { color: #111; text-shadow: 0 0 3px #fbf8f1, 0 0 6px #fbf8f1; }
+  /* chấm điểm trên giấy: lõi màu + viền đen (+ quầng nền giấy để tách khỏi nét) */
+  body.paper .spt { width: 12px; height: 12px; border: 2px solid var(--dot-ring); box-shadow: 0 0 0 1.5px #fbf8f1; }
+  body.paper .spt.in { background: var(--sec); }
+  body.paper .spt.sel { background: var(--btn-on); box-shadow: 0 0 0 1.5px #fbf8f1, 0 0 0 4px var(--accent); }
+  body.paper .spt.ring { width: 20px; height: 20px; border: 2.5px solid var(--accent); background: transparent; box-shadow: 0 0 0 1.5px #fbf8f1; }
+  body.paper .spt.pierce { width: 10px; height: 10px; background: #fff; }
+  body.paper .spt.free { width: 16px; height: 16px; background: #fbf8f1; border: 3px solid var(--con); box-shadow: 0 0 0 1.5px var(--dot-ring); }
+  body.paper .spt.free.sel { background: var(--btn-on); border-color: var(--accent); }
+  body.paper .spt span, body.paper .plabel { text-shadow: 0 0 3px #fbf8f1, 0 0 6px #fbf8f1; }
+  body.paper .spt.foot, body.paper .spt.foot span { --accent: #8a5a00; }
+  body.paper .alabel, body.paper #pnote { color: #8a5a00; text-shadow: 0 0 3px #fbf8f1; }
+  body.paper .mlabel { color: #1f2430; background: rgba(255, 252, 244, 0.9); }
+  body.paper .legend .hid::before { border-top-color: #5a5a5a; }
+  body.paper #t-msg.warn, body.paper #cut-msg.warn { color: #b3261e; }
+  body.paper .code-wrap { background: #fff; border-color: #ddd4c0; }
+  body.paper #code-hl mark { background: rgba(179, 38, 30, 0.18); }
+  body.paper .code-msg .err { color: #b3261e; }
+  body.paper .code-msg .wrn { color: #8a4b00; }
+  body.paper nav :is(#t-kbd, .syms button) { border-color: #b9ae96; }
+  body.paper nav #t-kbd.on { color: #6b4700; border-color: var(--accent); }
+  /* Màn hình phẳng 2D theo chế độ Giấy vở: nền ô ly, thanh công cụ sáng, nhãn Times nghiêng */
+  body.paper #p2d {
+    background-color: #fbf8f1;
+    background-image:
+      linear-gradient(to right, rgba(110, 120, 140, 0.24) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(110, 120, 140, 0.24) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(110, 120, 140, 0.09) 1px, transparent 1px);
+    background-size: 32px 32px, 32px 32px, 32px 8px;
+    color: var(--text);
+  }
+  body.paper .p2d-bar { background: #f3eee2; border-top-color: #ddd4c0; }
+  @media (orientation: landscape) and (max-height: 520px) {
+    body.paper .p2d-bar { border-left-color: #ddd4c0; }
+  }
+  body.paper .p2d-label {
+    font: italic 700 19px/1 "Times New Roman", Georgia, serif;
+    fill: #111111;
+    stroke: #fbf8f1;
+    stroke-width: 3px;
+    paint-order: stroke;
+  }
+  body.paper #p2d .p2d-tools button.on { background: var(--con); color: #fff; }
+  body.paper #p2d #p2d-3d { background: var(--accent); color: #fff; }
+
+  /* Xuất hình: hộp toàn màn, xem trước nền trắng */
+  #exp { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; padding: 12px; background: rgba(5, 8, 14, 0.7); }
+  #exp[hidden] { display: none; }
+  #exp:not([hidden]) { animation: fade-in var(--d-mid) var(--ease); }
+  #exp:not([hidden]) .exp-card { animation: rise-in var(--d-mid) var(--ease); }
+  .exp-card {
+    width: min(560px, 100%); max-height: 100%; overflow: auto; padding: 12px; border-radius: 16px; background: #182236;
+    border: 1px solid #2b3a59; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+  .exp-top { display: flex; align-items: center; justify-content: space-between; }
+  .exp-top b { font-size: 17px; }
+  /* xem trước vừa khung (không cuộn, không bị cắt mép trên khi hình cao) */
+  #exp-prev { background: #fff; border-radius: 10px; display: flex; justify-content: center; }
+  #exp-prev svg { display: block; max-width: 100%; max-height: 56dvh; width: auto; height: auto; }
+  .exp-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .exp-row label { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text); }
+  #exp button {
+    min-height: 44px; border: 0; border-radius: 12px; padding: 0 14px; background: var(--btn); color: var(--text);
+    font-size: 15px; font-weight: 600;
+  }
+  #exp .exp-row button { flex: 1 1 0; }
+  #exp .exp-row button.on { background: var(--btn-on); color: #1a1a1a; }
+  #exp #exp-close { background: transparent; border: 1px solid var(--btn); color: var(--muted); min-height: 44px; }
+  #exp #exp-go { background: var(--btn-on); color: #1a1a1a; }
+  #exp-msg { margin: 0; font-size: 13px; color: var(--muted); min-height: 1.2em; }
+
+  /* Hộp hỏi giữa màn */
+  #dlg { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: rgba(5, 8, 14, 0.6); }
+  #dlg[hidden] { display: none; }
+  #dlg:not([hidden]) { animation: fade-in var(--d-fast) var(--ease); }
+  #dlg:not([hidden]) .dlg-card { animation: rise-in var(--d-mid) var(--ease); }
+  .dlg-card {
+    width: min(360px, 100%); padding: 16px; border-radius: 16px; background: #182236; border: 1px solid #2b3a59;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 14px;
+  }
+  .dlg-card p { margin: 0; font-size: 15px; line-height: 1.45; }
+  .dlg-btns { display: flex; flex-direction: column; gap: 8px; }
+  .dlg-btns button {
+    min-height: 46px; border: 0; border-radius: 12px; background: var(--btn); color: var(--text); font-size: 15px; font-weight: 600;
+  }
+  .dlg-btns button.main { background: var(--btn-on); color: #1a1a1a; }
+  .dlg-btns button.danger { background: #c4553a; }
+  .dlg-btns button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--btn); }
+  /* Đổi tên điểm (TEN-03): thẻ nằm phía trên màn để bàn phím ảo không che */
+  #rn { position: fixed; inset: 0; z-index: 10; display: grid; justify-items: center; align-items: start;
+        padding: calc(64px + env(safe-area-inset-top)) 16px 16px; background: rgba(5, 8, 14, 0.6); }
+  #rn[hidden] { display: none; }
+  #rn:not([hidden]) { animation: fade-in var(--d-fast) var(--ease); }
+  #rn:not([hidden]) .dlg-card { animation: rise-in var(--d-mid) var(--ease); }
+  #rn-title { font-size: 15px; }
+  .rn-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .rn-grid button, .rn-row button {
+    min-height: 46px; border: 0; border-radius: 12px; background: var(--btn); color: var(--text);
+    font: italic 700 19px/1 "Times New Roman", Georgia, serif;
+  }
+  .rn-grid button:active, .rn-row button:active { transform: scale(0.95); }
+  .rn-row { display: flex; gap: 8px; }
+  .rn-row .field { flex: 1 1 auto; min-width: 0; font-size: 17px; }
+  .rn-row button { flex: 0 0 auto; padding: 0 16px; background: var(--btn-on); color: #1a1a1a; font: 600 15px/1 system-ui, sans-serif; }
+  #rn-err { margin: -4px 0 0; font-size: 13.5px; color: #ff8a8a; }
+  #rn-err:empty { display: none; }
+  body.paper #rn-err { color: #b3261e; }
+
+  /* Điện thoại cầm ngang: bảng trượt thành cột bên phải (~38% bề ngang), hình chiếm phần còn lại
+     (resize() trong JS dùng cùng điều kiện). Không mở bảng nào thì cột thu lại thành thanh tab dọc hẹp,
+     dòng hướng dẫn khi đó nằm dưới hình. Màn dọc giữ nguyên. */
+  @media (orientation: landscape) and (max-height: 520px) {
+    nav {
+      --land: 1;   /* resize() đọc biến này: JS luôn khớp đúng bố cục CSS đang áp dụng */
+      top: 0; left: auto; width: calc(64px + env(safe-area-inset-right)); padding-right: env(safe-area-inset-right);
+      background: #121a2a; border-left: 1px solid #26314a;
+    }
+    nav:has(#sheet.open), body:is(.wizard, .unfolding, .playing) nav { width: calc(38vw + env(safe-area-inset-right)); }
+    #sheet.open, body:is(.wizard, .unfolding, .playing, .present) #sheet {
+      flex: 1 1 auto; min-height: 0; max-height: none; border-radius: 0; box-shadow: none;
+    }
+    #sheet.open { animation: sheet-in-x var(--d-slow) var(--ease); }
+    #sheet.closing { display: none; }
+    #sheet.vheight { transition: none; }
+    @keyframes sheet-in-x { from { transform: translateX(100%); } }
+    .sheet-body { flex: 1 1 auto; min-height: 0; padding-top: 4px; }
+    .grab { touch-action: auto; cursor: default; }
+    #tabs { padding: 0 0 env(safe-area-inset-bottom); }
+    nav:not(:has(#sheet.open)) #tabs {
+      flex: 1 1 auto; flex-direction: column; justify-content: center; gap: 4px;
+      border-top: 0; padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    }
+    nav:not(:has(#sheet.open)) #tabs button { flex: 0 0 auto; }
+    nav:not(:has(#sheet.open)) #strip { position: fixed; left: 0; right: calc(64px + env(safe-area-inset-right)); bottom: 0; }
+    body.present #play-text { min-height: 0; }
+    /* cột hẹp: công cụ thấp hơn, chữ nhỏ hơn chút */
+    nav .tools button { min-height: 48px; }
+    nav .tools button small { font-size: 10.5px; }
+  }
+
+  #err {
+    position: fixed; inset: 0; display: none; place-items: center;
+    padding: 24px; text-align: center; color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+
+<!-- Trên cùng: trái nút Vở (Vở bài, Mẫu, hình gần đây, đề bài / ghi chú); phải Góc đẹp + Danh sách đối tượng;
+     giữa: viên thuốc tên đối tượng vừa chọn (tự mờ, chạm để mở menu) + ghi chú giao tuyến -->
+<div id="top">
+  <button id="btn-book" class="round" title="Vở bài, Mẫu, hình gần đây" aria-label="Vở bài, Mẫu, hình gần đây"><i data-i="notebook"></i></button>
+  <div class="top-mid"><div id="pill" hidden></div><p id="pnote"></p></div>
+  <button id="btn-reset" class="round" title="Góc đẹp: chọn góc nhìn để các điểm, nét không chồng lên nhau" aria-label="Góc đẹp"><i data-i="camera"></i></button>
+  <button id="btn-list" class="round" title="Danh sách đối tượng" aria-label="Danh sách đối tượng"><i data-i="list"></i></button>
+</div>
+
+<div id="hist">
+  <button id="t-undo" disabled title="Hoàn tác" aria-label="Hoàn tác"><i data-i="undo-2"></i></button>
+  <button id="t-redo" disabled title="Làm lại" aria-label="Làm lại"><i data-i="redo-2"></i></button>
+</div>
+
+<button id="present-exit" title="Thoát toàn màn hình" aria-label="Thoát toàn màn hình"><i data-i="minimize"></i><span>Thoát</span></button>
+
+<!-- Điểm tự do đang chọn: bánh xe chỉnh độ cao (vuốt lên / xuống) + Vết -->
+<div id="wheel" hidden>
+  <output id="wh-val"></output>
+  <div id="wh-track" role="slider" aria-label="Độ cao điểm tự do" aria-orientation="vertical" tabindex="0"></div>
+  <button id="wh-trace" aria-pressed="false">Vết</button>
+  <button id="wh-clear" disabled>Xoá vết</button>
+</div>
+
+<nav>
+ <section id="sheet">
+  <div class="grab"><b id="sheet-title"></b></div>
+  <div class="sheet-body">
+  <div class="pane" data-pane="shape">
+    <button id="btn-build" class="wide"><i data-i="pencil-ruler"></i><span>Dựng theo đề</span></button>
+    <h3>Hình nhanh</h3>
+    <div class="row chips" id="shape-row">
+      <button data-shape="tri">S.ABC</button>
+      <button data-shape="quad" class="on">S.ABCD</button>
+      <button data-shape="prism">Lăng trụ</button>
+      <button data-shape="box">Hình hộp</button>
+    </div>
+    <button id="btn-2d" class="wide2"><i data-i="shapes"></i><span>Hình phẳng 2D</span></button>
+  </div>
+  <div class="pane" data-pane="book">
+    <p class="cur-shape">Đang xem: <b id="title">Hình chóp S.ABCD</b></p>
+    <div class="row big"><button data-go="code"><i data-i="code"></i><small>Mã đề</small></button><button data-go="notebook"><i data-i="notebook-pen"></i><small>Vở bài</small></button><button data-go="presets"><i data-i="star"></i><small>Mẫu</small></button></div>
+    <div class="recent-box"><h3>Hình gần đây</h3><div class="row chips" id="recent-row"></div></div>
+    <h3>Đề bài</h3>
+    <p id="sample-text" data-empty="Chưa có đề bài (mở một Mẫu để có đề)"></p>
+    <h3>Ghi chú của vở</h3>
+    <textarea id="nb-note" class="field" rows="3" maxlength="2000" placeholder="Ghi chú: chép đề, hoặc ghi việc đang làm…" aria-label="Ghi chú"></textarea>
+  </div>
+  <div class="pane" data-pane="view">
+    <h3>Tự quay</h3>
+    <div class="row spin-row">
+      <button id="spin-go" aria-pressed="false"><i data-i="rotate-3d"></i><span>Tự quay</span></button>
+      <div class="seg" id="spin-speed" role="group" aria-label="Tốc độ quay">
+        <button id="spin-slow" title="Một vòng khoảng 20 giây">Chậm</button>
+        <button id="spin-mid" class="on" title="Một vòng khoảng 10 giây">Vừa</button>
+        <button id="spin-fast" title="Một vòng khoảng 5 giây">Nhanh</button>
+      </div>
+    </div>
+    <div class="prm"><span>Độ nghiêng</span><span class="cs" id="spin-tilt" data-min="10" data-max="80" data-step="1" data-value="45" data-fmt="deg" aria-label="Độ nghiêng khi tự quay"></span><output id="spin-tilt-val">45°</output></div>
+    <div class="row"><button id="btn-unfold"><i data-i="package-open"></i><span>Trải hình</span></button><button id="btn-play"><i data-i="list-ordered"></i><span>Thành bước</span></button></div>
+  </div>
+  <div class="pane" data-pane="presets">
+    <div class="row sub"><button class="ghost" data-go="book"><i data-i="chevron-left"></i><span>Vở</span></button></div>
+    <div class="row"><input id="pr-name" class="field" maxlength="40" aria-label="Tên mẫu" autocomplete="off"><button id="pr-save" class="save"><i data-i="star"></i><span>Lưu làm mẫu</span></button></div>
+    <p id="pr-msg" class="pmsg"></p>
+    <div id="pr-list" class="stack"></div>
+  </div>
+  <div class="pane" data-pane="share">
+    <div class="row sub"><button class="ghost" data-go="more"><i data-i="chevron-left"></i><span>Khác</span></button></div>
+    <p class="pmsg">Gửi hình đang xem cho bạn (cả bước dựng, thiết diện, góc nhìn). Không cần tài khoản hay máy chủ.</p>
+    <div class="row big">
+      <button id="sh-link"><i data-i="link"></i><small>Sao chép link</small></button>
+      <button id="sh-code"><i data-i="copy"></i><small>Sao chép mã</small></button>
+      <button id="sh-send" hidden><i data-i="send"></i><small>Gửi…</small></button>
+    </div>
+    <textarea id="sh-out" class="field" rows="2" readonly aria-label="Link hoặc mã vừa tạo" placeholder="Link / mã sẽ hiện ở đây"></textarea>
+    <h3>Mở hình bạn gửi</h3>
+    <textarea id="sh-in" class="field" rows="2" placeholder="Dán link hoặc mã vào đây" aria-label="Link hoặc mã chia sẻ" autocomplete="off"></textarea>
+    <div class="row"><button id="sh-paste"><i data-i="clipboard-paste"></i><span>Dán mã</span></button><button id="sh-open" class="save">Mở hình</button></div>
+    <p id="sh-msg" class="pmsg"></p>
+  </div>
+  <div class="pane" data-pane="code">
+    <div class="row sub"><button class="ghost" data-go="book"><i data-i="chevron-left"></i><span>Vở</span></button></div>
+    <div class="code-wrap"><div id="code-hl" aria-hidden="true"></div><textarea id="code-in" rows="7" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Mã đề .sabcd: mỗi dòng một câu"></textarea></div>
+    <div id="code-msg" class="code-msg" aria-live="polite"></div>
+    <button id="code-build" class="save"><i data-i="play"></i><span>Dựng</span></button>
+    <div class="row big code-btns">
+      <button id="code-copy"><i data-i="copy"></i><small>Sao chép mã đề</small></button>
+      <button id="code-save"><i data-i="download"></i><small>Lưu file</small></button>
+      <button id="code-open"><i data-i="upload"></i><small>Mở file</small></button>
+    </div>
+    <input id="code-file" type="file" accept=".sabcd,.txt,text/plain" hidden>
+    <p class="pmsg">Mỗi dòng một câu như lời giải: M = trung điểm SC · N ∈ SB, SN = 2NB · O = AC ∩ BD · thiết diện (AMN) · tỉ số AI/AM</p>
+  </div>
+  <div class="pane" data-pane="notebook">
+    <div class="row sub"><button class="ghost" data-go="book"><i data-i="chevron-left"></i><span>Vở</span></button><button id="nb-new"><i data-i="plus"></i><span>Vở mới</span></button></div>
+    <p id="nb-msg" class="pmsg"></p>
+    <input id="nb-name" class="field" maxlength="40" placeholder="Tên vở" aria-label="Tên vở" autocomplete="off">
+    <div id="nb-list"></div>
+  </div>
+  <div class="pane" data-pane="build">
+   <div id="tools">
+    <!-- 2 hàng × 4: công cụ dựng + Chọn. Xoá nằm trong menu đối tượng (chạm tên đối tượng ở mép trên) -->
+    <div class="tools" id="tool-row">
+      <button data-tool="point"><i data-i="point"></i><small>Điểm</small></button>
+      <button data-tool="segment"><i data-i="slash"></i><small>Đoạn</small></button>
+      <button data-tool="extend"><i data-i="move-horizontal"></i><small>Kéo dài</small></button>
+      <button data-tool="intersect"><i data-i="crosshair"></i><small>Giao điểm</small></button>
+      <button data-tool="plane"><i data-i="layers"></i><small>Mặt phẳng</small></button>
+      <button data-tool="meet"><i data-i="split"></i><small>Giao tuyến</small></button>
+      <button data-tool="ratio"><i data-i="ruler"></i><small>Tỉ số</small></button>
+      <button id="t-select" class="on"><i data-i="hand"></i><small>Chọn</small></button>
+    </div>
+    <button id="t-kbd" aria-expanded="false"><i data-i="keyboard"></i><span>Gõ lệnh</span></button>
+    <div id="t-cmd" hidden>
+      <div class="cmd-line"><textarea id="cmd-in" class="field" rows="1" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" placeholder="Ví dụ: M = trung điểm SC" aria-label="Lệnh dựng: Enter là thêm vào hình"></textarea><button id="cmd-go" aria-label="Thêm vào hình"><i data-i="corner-down-left"></i></button></div>
+      <div id="cmd-msg" class="code-msg" aria-live="polite"></div>
+      <div class="syms" role="group" aria-label="Phím ký hiệu"><button data-k="∩">∩</button><button data-k="∥">∥</button><button data-k="⊥">⊥</button><button data-k="∈">∈</button><button data-k="=">=</button><button data-k="(">(</button><button data-k=")">)</button><button data-k="'">'</button><button data-k=".">.</button><button data-k=", ">,</button></div>
+    </div>
+    <!-- Cách đặt điểm: chỉ hiện khi đang dùng công cụ Điểm -->
+    <div class="seg mode" id="t-mode" role="group" aria-label="Cách đặt điểm" hidden>
+      <button data-mode="edge">Cạnh · mặt</button>
+      <button data-mode="mid">Trung điểm</button>
+      <button data-mode="free">Tự do</button>
+    </div>
+    <div id="t-edge" hidden>
+      <b>M</b><output></output><span class="cs" data-min="0" data-max="1" data-step="0.01" data-value="0.5" data-snaps="1/4,1/3,1/2,2/3,3/4" data-fmt="frac" aria-label="Vị trí điểm trên cạnh"></span>
+      <span class="quick"><button data-t="1/2">Trung điểm</button><button data-t="1/3">1/3</button><button data-t="2/3">2/3</button></span>
+    </div>
+   </div>
+  </div>
+  <div class="pane" data-pane="cut">
+   <div id="cut">
+    <div class="row chips" id="sec-tabs"></div>
+    <div class="pt"><b>M</b><select aria-label="Điểm M"></select><span class="cs" data-min="0" data-max="1" data-step="0.01" data-value="0.5" data-snaps="1/4,1/3,1/2,2/3,3/4" data-fmt="frac" aria-label="Vị trí M"></span><output></output></div>
+    <div class="pt"><b>N</b><select aria-label="Điểm N"></select><span class="cs" data-min="0" data-max="1" data-step="0.01" data-value="0.5" data-snaps="1/4,1/3,1/2,2/3,3/4" data-fmt="frac" aria-label="Vị trí N"></span><output></output></div>
+    <div class="pt"><b>P</b><select aria-label="Điểm P"></select><span class="cs" data-min="0" data-max="1" data-step="0.01" data-value="0.5" data-snaps="1/4,1/3,1/2,2/3,3/4" data-fmt="frac" aria-label="Vị trí P"></span><output></output></div>
+    <p id="cut-msg"></p>
+    <h3 id="cut-from-title" hidden>Cắt bằng mặt phẳng có sẵn</h3>
+    <div class="row chips quick" id="cut-from"></div>
+    <div class="row"><button id="btn-cutoff" class="ghost"><i data-i="trash-2"></i><span>Xoá thiết diện này</span></button></div>
+   </div>
+  </div>
+  <div class="pane" data-pane="list"><div id="obj-list"></div></div>
+  <div class="pane" data-pane="more">
+    <div class="row big"><button data-go="share"><i data-i="share-2"></i><small>Chia sẻ</small></button><button id="btn-export"><i data-i="image-down"></i><small>Xuất hình</small></button></div>
+    <div class="row dwell-row"><span class="dwell-t">Chạm lặp: thời gian chốt</span>
+      <div class="seg" id="dwell-seg" role="group" aria-label="Thời gian chốt khi chạm lặp để chọn đối tượng">
+        <button data-ms="500" title="Ngừng tay 0,5 giây là chốt">0,5 s</button>
+        <button data-ms="800" class="on" title="Ngừng tay 0,8 giây là chốt">0,8 s</button>
+        <button data-ms="1200" title="Ngừng tay 1,2 giây là chốt">1,2 s</button>
+        <button data-ms="tap" title="Chạm vào viên thuốc mới chốt">Bấm để chốt</button>
+      </div>
+    </div>
+    <div class="row toggles"><button id="btn-paper" class="tog switch" aria-pressed="false">Giấy vở (nền trắng, ô ly)</button></div>
+    <div class="row"><button id="btn-prev" disabled><i data-i="history"></i><span>Quay lại hình trước</span></button></div>
+    <div class="brand">S.ABCD</div>
+    <p class="help">Vuốt 1 ngón để xoay · Chụm 2 ngón để phóng to/thu nhỏ · Kéo 2 ngón để dịch hình.<br>
+      Chạm vào một đối tượng để chọn, chạm tên nó ở trên cùng để mở menu; chạm lặp cùng chỗ để chọn đối tượng nằm phía sau.</p>
+    <div class="legend"><span>Nét thấy</span><span class="hid">Nét khuất</span></div>
+    <p class="copy">© 2026 Ryan – S.ABCD</p>
+  </div>
+
+ <div id="unf">
+  <div class="wiz-top"><b>Trải hình</b><span class="row"><button id="unf-export" class="ghost" title="Xuất hình trải đang xem (SVG / PNG / PDF)"><i data-i="image-down"></i><span>Xuất hình</span></button><button id="unf-close" class="ghost"><i data-i="x"></i><span>Đóng</span></button></span></div>
+  <div class="row unf-ctl">
+    <button id="unf-play" aria-label="Phát"><i data-i="play"></i></button>
+    <span class="cs" id="unf-k" data-min="0" data-max="1" data-step="0.001" data-value="0" data-fmt="pct" aria-label="Mức mở"></span>
+    <output id="unf-pct">0%</output>
+  </div>
+  <p id="unf-info"></p>
+ </div>
+
+ <div id="play">
+  <div class="wiz-top"><b id="play-count">Bước 1/1</b><span class="row"><button id="play-spin" class="ghost" aria-pressed="false" title="Tự quay" aria-label="Tự quay"><i data-i="rotate-3d"></i></button><button id="play-present" class="ghost" title="Toàn màn hình: chữ bước to, ẩn bớt nút (dùng khi chiếu lên màn lớn)"><i data-i="maximize"></i><span>Toàn màn hình</span></button><button id="play-close" class="ghost" title="Đóng" aria-label="Đóng"><i data-i="x"></i></button></span></div>
+  <p id="play-text"></p>
+  <div class="row play-ctl">
+    <button id="play-first" title="Về bước đầu" aria-label="Về bước đầu"><i data-i="skip-back"></i></button>
+    <button id="play-prev"><i data-i="chevron-left"></i><span>Lùi</span></button>
+    <button id="play-next"><span>Tiến</span><i data-i="chevron-right"></i></button>
+    <button id="play-last" title="Tới bước cuối" aria-label="Tới bước cuối"><i data-i="skip-forward"></i></button>
+  </div>
+ </div>
+
+ <div id="wiz">
+  <div class="wiz-top">
+    <b id="wiz-step">1/3 · Chọn đáy</b>
+    <div class="seg" id="wiz-solid">
+      <button data-solid="pyramid">Hình chóp</button>
+      <button data-solid="prism">Lăng trụ</button>
+    </div>
+  </div>
+  <div class="wiz-page" data-page="1">
+    <div class="cards" id="wiz-cards"></div>
+    <div id="wiz-params" class="stack"></div>
+  </div>
+  <div class="wiz-page" data-page="2" hidden>
+    <div class="choices" id="wiz-choices"></div>
+  </div>
+  <div class="wiz-page" data-page="3" hidden>
+    <div id="wiz-height"></div>
+    <div class="toggles" id="wiz-toggles"></div>
+  </div>
+  <p id="wiz-err"></p>
+  <div class="row">
+    <button id="wiz-back" class="ghost"><i data-i="x"></i><span>Huỷ</span></button>
+    <button id="wiz-next"><span>Tiếp</span><i data-i="chevron-right"></i></button>
+    <button id="wiz-done" title="Xong ngay: các màn sau giữ mặc định (SA ⊥ đáy, chiều cao 3)"><i data-i="check"></i><span>Xong</span></button>
+  </div>
+ </div>
+  </div>
+ </section>
+ <div id="strip">
+  <div class="strip-line">
+    <div class="strip-text"><p id="t-msg"></p><p id="t-hint"></p></div>
+    <button id="t-exit" title="Thôi dùng công cụ" aria-label="Thôi dùng công cụ"><i data-i="x"></i></button>
+  </div>
+  <div id="t-confirm" hidden><span></span><button id="t-yes">Xoá cả</button><button id="t-no" class="ghost">Thôi</button></div>
+  <div class="row chips quick" id="t-quick" hidden></div>
+  <div class="row chips quick" id="t-suggest" hidden aria-label="Gợi ý giao điểm"></div>
+ </div>
+ <div id="tabs">
+  <button data-pane="shape"><i data-i="pentagon"></i>Hình</button>
+  <button data-pane="build"><i data-i="pencil-ruler"></i>Dựng</button>
+  <button data-pane="cut"><i data-i="scissors"></i>Thiết diện</button>
+  <button data-pane="view"><i data-i="eye"></i>Xem</button>
+  <button data-pane="more"><i data-i="ellipsis"></i>Khác</button>
+ </div>
+</nav>
+
+<!-- Menu nổi khi chạm vào một mặt -->
+<div id="pmenu" hidden>
+  <b id="pm-title"></b>
+  <div id="pm-main" class="pm-grid">
+    <button data-act="open"><i data-i="maximize-2"></i><span>Mở rộng</span></button>
+    <button data-act="hide"><i data-i="eye-off"></i><span>Ẩn</span></button>
+    <button data-act="color"><span class="swatch"></span><span>Màu</span></button>
+    <button data-act="name"><i data-i="tag"></i><span>Đặt tên</span></button>
+    <button data-act="cut"><i data-i="scissors"></i><span>Cắt thiết diện</span></button>
+    <button data-act="del"><i data-i="trash-2"></i><span>Xoá</span></button>
+  </div>
+  <div id="pm-obj" class="pm-grid" hidden>
+    <button data-act="ext"><i data-i="move-horizontal"></i><span>Kéo dài</span></button>
+    <button data-act="rename"><i data-i="tag"></i><span>Đổi tên</span></button>
+    <button data-act="hide"><i data-i="eye-off"></i><span>Ẩn</span></button>
+    <button data-act="color"><span class="swatch"></span><span>Màu</span></button>
+    <button data-act="del"><i data-i="trash-2"></i><span>Xoá</span></button>
+  </div>
+  <div id="pm-names" class="pm-grid" hidden>
+    <button data-name="α">(α)</button><button data-name="β">(β)</button><button data-name="γ">(γ)</button>
+    <button data-name="P">(P)</button><button data-name="Q">(Q)</button><button data-name="">Bỏ tên</button>
+  </div>
+  <div id="pm-ask" hidden><span></span><div class="pm-grid"><button data-act="yes" class="danger">Xoá cả</button><button data-act="no">Thôi</button></div></div>
+</div>
+
+<!-- Hình phẳng 2D (plane2d-ui.js): vẽ bằng SVG, phủ cả màn hình -->
+<div id="p2d" hidden>
+  <div class="p2d-top"><b>Hình phẳng 2D</b><span id="p2d-status"></span></div>
+  <svg id="p2d-svg" aria-label="Hình phẳng"></svg>
+  <div class="p2d-bar">
+    <p id="p2d-hint"></p>
+    <div class="p2d-tools">
+      <button data-t2="move" class="on"><i data-i="hand"></i><small>Chọn / kéo</small></button>
+      <button data-t2="point"><i data-i="point"></i><small>Điểm</small></button>
+      <button data-t2="segment"><i data-i="slash"></i><small>Đoạn</small></button>
+      <button data-t2="line"><i data-i="move-horizontal"></i><small>Đường</small></button>
+      <button data-t2="midpoint"><i data-i="git-commit-horizontal"></i><small>Trung điểm</small></button>
+      <button data-t2="intersect"><i data-i="crosshair"></i><small>Giao điểm</small></button>
+      <button data-t2="parallel"><i data-i="parallel"></i><small>Song song</small></button>
+      <button data-t2="perp"><i data-i="perp"></i><small>Vuông góc</small></button>
+      <button data-t2="circle"><i data-i="circle"></i><small>Đường tròn</small></button>
+      <button data-t2="delete"><i data-i="trash-2"></i><small>Xoá</small></button>
+    </div>
+    <div class="p2d-row">
+      <button id="p2d-undo" aria-label="Hoàn tác"><i data-i="undo-2"></i></button><button id="p2d-redo" aria-label="Làm lại"><i data-i="redo-2"></i></button>
+      <button id="p2d-clear">Xoá hết</button><button id="p2d-export"><i data-i="image-down"></i><span>Xuất hình</span></button><button id="p2d-3d" class="main"><i data-i="box"></i><span>Hình 3D</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Xuất hình kiểu SGK: xem trước rồi tải về -->
+<div id="exp" hidden>
+  <div class="exp-card">
+    <div class="exp-top"><b>Xuất hình</b><button id="exp-close"><i data-i="x"></i><span>Đóng</span></button></div>
+    <div id="exp-prev" aria-label="Xem trước hình xuất"></div>
+    <div class="exp-row" id="exp-fmt">
+      <button data-fmt="svg" class="on">SVG</button><button data-fmt="png">PNG</button><button data-fmt="pdf">PDF A4</button>
+    </div>
+    <div class="exp-row">
+      <label><input type="checkbox" id="exp-text" checked> Kèm đề bài</label>
+      <label><input type="checkbox" id="exp-steps"> Kèm các bước dựng</label>
+    </div>
+    <button id="exp-go"><i data-i="download"></i><span>Tải về</span></button>
+    <p id="exp-msg"></p>
+  </div>
+</div>
+
+<!-- Hộp hỏi giữa màn (ghi đè, xoá vở, mở hình được chia sẻ) -->
+<div id="dlg" hidden><div class="dlg-card"><p></p><div class="dlg-btns"></div></div></div>
+<!-- Đổi tên đỉnh / điểm (tools.js openRename): chữ chưa dùng + ô gõ tay -->
+<div id="rn" hidden><div class="dlg-card" role="dialog" aria-labelledby="rn-title">
+  <b id="rn-title">Đổi tên điểm</b>
+  <div id="rn-grid" class="rn-grid"></div>
+  <div class="rn-row"><input id="rn-in" class="field" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false"
+    placeholder="Gõ tên khác: A, A1, A'" aria-label="Tên mới"><button id="rn-ok" type="button">Đặt tên</button></div>
+  <p id="rn-err" role="alert"></p>
+  <div class="dlg-btns"><button id="rn-no" class="ghost" type="button">Thôi</button></div>
+</div></div>
+
+<div id="err">Không tải được thư viện 3D. Tải lại trang (lần đầu mở app cần có mạng để cài bản chạy offline).</div>
+
+<script src="shapes.js"></script>
+<script src="section.js"></script>
+<script src="builder.js"></script>
+<script src="construct.js"></script>
+<script src="view.js"></script>
+<script src="motion.js"></script>
+<script src="sections.js"></script>
+<script src="unfold.js"></script>
+<script src="lesson.js"></script>
+<script src="ratio.js"></script>
+<script src="export2d.js"></script>
+<script src="plane2d.js"></script>
+<script src="theme.js"></script>
+<script src="state.js"></script>
+<script src="sabcd.js"></script>
+<script src="notebook.js"></script>
+<script src="icons.js"></script>
+<script src="capsule-slider.js"></script>
+<script src="anim.js"></script>
+<script type="importmap">
+{
+  "imports": {
+    "three": "./vendor/three/build/three.module.js",
+    "three/addons/": "./vendor/three/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { initWizard } from './wizard.js';
+import { initTools } from './tools.js';
+import { initSaves, askUser } from './saves.js';
+import { initExport } from './exportui.js';
+import { initPlane2D } from './plane2d-ui.js';
+import { initCode } from './codeui.js';
+
+// ------------------------------------------------------------------
+// 1. DỮ LIỆU HÌNH nằm ở shapes.js, hàm tính thiết diện ở section.js
+//    (tách riêng, không dính Three.js, test.html dùng chung)
+// ------------------------------------------------------------------
+const { SHAPES, section: SECTION, builder: BUILDER, construct: CONSTRUCT,
+        sections: SECS, icons: ICON, anim: FX } = window.SABCD;
+FX.syncBody();               // body.fx-full / fx-basic / fx-none theo gói + "giảm chuyển động"
+SABCD.capsule.mountAll(document);  // thanh kéo viên nang (giá trị trên núm, jelly khi đủ hiệu ứng); phải mount trước khi các module khác lấy phần tử
+
+// ------------------------------------------------------------------
+// 2. KHUNG CẢNH: renderer, camera trực giao, lớp nhãn HTML
+// ------------------------------------------------------------------
+const stage = document.getElementById('stage');
+
+// alpha: chế độ Giấy vở xoá nền trong suốt để thấy lưới ô ly (CSS, cố định theo màn hình) phía sau
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x0f1420, 1);
+stage.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.domElement.id = 'labels';
+stage.appendChild(labelRenderer.domElement);
+
+const scene = new THREE.Scene();
+
+// Camera trực giao: cạnh song song vẫn song song, giống hình vẽ SGK.
+const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+const TARGET = new THREE.Vector3(0, 1.2, 0);
+camera.position.set(5.5, 4.2, 8.5);
+camera.lookAt(TARGET);
+
+// ------------------------------------------------------------------
+// 3. CỬ CHỈ: 1 ngón xoay, 2 ngón chụm để zoom
+// ------------------------------------------------------------------
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.copy(TARGET);
+controls.enableDamping = true;     // xoay có quán tính, mượt tay
+controls.dampingFactor = 0.08;
+controls.enablePan = true;         // 2 ngón / chuột phải kéo = dịch hình (có giới hạn, xem clampPan)
+controls.rotateSpeed = 0.9;
+controls.minZoom = 0.5;
+controls.maxZoom = 9;              // phóng sâu để xem chi tiết (thu nhỏ giữ như cũ)
+controls.zoomToCursor = true;      // phóng đúng chỗ ngón chụm / con trỏ chuột
+controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+controls.update();
+controls.saveState();              // ghi nhớ góc nhìn ban đầu cho nút Reset
+
+// ------------------------------------------------------------------
+// 4. DỰNG HÌNH với kỹ thuật "vẽ hai lần" cho nét khuất
+//    - Mặt hình chóp: vô hình, chỉ ghi chiều sâu (depth).
+//    - Lần 1: cạnh nét liền, chỉ hiện phần KHÔNG bị mặt che.
+//    - Lần 2: cạnh nét đứt, chỉ hiện phần BỊ mặt che (GreaterDepth).
+// ------------------------------------------------------------------
+const lineVisible = new LineMaterial({ color: 0xe8eef9, linewidth: 2.6 });
+
+const lineHidden = new LineMaterial({
+  color: 0x7f97bd, linewidth: 1.8,
+  dashed: true, dashSize: 0.16, gapSize: 0.12,
+});
+lineHidden.depthFunc = THREE.GreaterDepth;
+lineHidden.depthWrite = false;
+
+const faceDepth = new THREE.MeshBasicMaterial({
+  colorWrite: false,              // không tô màu, chỉ làm "tấm chắn"
+  side: THREE.DoubleSide,
+  polygonOffset: true,            // đẩy mặt lùi một chút để cạnh nằm trên mặt không bị nhấp nháy
+  polygonOffsetFactor: 1,
+  polygonOffsetUnits: 1,
+});
+
+const faceTint = new THREE.MeshBasicMaterial({
+  color: 0x5b8def, transparent: true, opacity: 0.07,
+  side: THREE.FrontSide, depthWrite: false,
+  polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1,
+});
+
+// Ký hiệu góc vuông: luôn nét liền, không bị mặt che
+const markLine = new LineMaterial({ color: 0xe8eef9, linewidth: 1.6 });
+markLine.depthTest = false;
+
+let current = null;      // nhóm hình đang hiển thị
+let currentShape = null; // dữ liệu hình đang hiển thị
+let currentKey = 'quad'; // tên hình nhanh, hoặc chính hình dựng theo đề
+let depthMesh = null, tintMesh = null, faceMask = '';
+let saves = null;        // Vở bài (saves.js): tự lưu sau mỗi thao tác
+let code = null;         // Mã đề .sabcd (codeui.js): chữ của hình đang xem
+const dirty = () => saves?.dirty();
+
+function buildFaces(shape, hidden = []) {
+  const pos = [];
+  const key = f => [...f].sort().join();
+  const skip = new Set(hidden.map(key));
+  for (const f of shape.faces) {
+    if (skip.has(key(f))) continue;   // mặt bị ẩn: không tô, không che (nhìn xuyên qua)
+    // Chia đa giác thành các tam giác (quạt từ đỉnh đầu tiên)
+    for (let i = 1; i < f.length - 1; i++) {
+      for (const name of [f[0], f[i], f[i + 1]]) pos.push(...shape.vertices[name]);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return g;
+}
+
+function buildEdges(shape, material, order) {
+  const pos = [];
+  for (const [a, b] of shape.edges) pos.push(...shape.vertices[a], ...shape.vertices[b]);
+  return buildLines(pos, material, order);
+}
+
+function buildLines(pos, material, order) {
+  const g = new LineSegmentsGeometry();
+  g.setPositions(pos);
+  const lines = new LineSegments2(g, material);
+  lines.computeLineDistances();   // cần cho nét đứt
+  lines.renderOrder = order;
+  return lines;
+}
+
+// Vị trí nhãn từng đỉnh: đẩy ra phía ngoài hình (hình trải dùng unfold.netLabels)
+function labelPositions(shape) {
+  // Tâm hình, dùng để đẩy nhãn ra phía ngoài hình
+  const all = Object.values(shape.vertices);
+  const c = new THREE.Vector3();
+  for (const v of all) c.add(new THREE.Vector3(...v));
+  c.divideScalar(all.length);
+
+  return Object.entries(shape.vertices).map(([name, v]) => {
+    const p = new THREE.Vector3(...v);
+    const out = p.clone().sub(c).setY(0);
+    if (out.length() < 1e-6) {
+      p.y += 0.35;                    // đỉnh chóp nằm trên trục
+    } else {
+      p.add(out.normalize().multiplyScalar(0.35));
+      p.y += p.y > c.y ? 0.12 : -0.12; // đỉnh trên đẩy lên, đỉnh dưới đẩy xuống
+    }
+    return [name, p];
+  });
+}
+
+function vertexLabel(name, pos) {
+  const el = document.createElement('div');
+  el.className = 'vlabel';
+  el.textContent = CONSTRUCT.nm(name);
+  el.dataset.v = name;   // id đỉnh: đổi tên thì chỉ đổi chữ (relabel)
+  const label = new CSS2DObject(el);
+  label.position.copy(pos);
+  return label;
+}
+
+function buildLabels(shape) {
+  const group = new THREE.Group();
+  for (const [name, p] of labelPositions(shape)) group.add(vertexLabel(name, p));
+  return group;
+}
+
+function disposeGroup(group) {
+  group.traverse(o => {
+    if (o.isCSS2DObject) o.element.remove();
+    if (o.geometry) o.geometry.dispose();
+  });
+  scene.remove(group);
+}
+
+// Đường cao SH (vẽ hai lần nên tự thành nét đứt khi nằm trong khối),
+// chân đường cao và ký hiệu góc vuông — chỉ có ở hình dựng theo đề.
+function buildExtras(shape) {
+  const group = new THREE.Group();
+  const ex = shape.extras, spec = shape.spec || {};
+  if (!ex) return group;
+  const showH = spec.showHeight !== false;
+  if (ex.height && showH) {
+    const seg = [...ex.height[0], ...ex.height[1]];
+    group.add(buildLines(seg, lineVisible, 1), buildLines(seg, lineHidden, 2));
+    // Chấm ở chân đường cao; chữ H/O đặt phía ngược với ký hiệu góc vuông cho khỏi che
+    const at = new THREE.Vector3(...ex.foot.pos), r = ex.right[0];
+    const away = new THREE.Vector3(...r.p1).sub(at).normalize()
+      .add(new THREE.Vector3(...r.p2).sub(at).normalize()).normalize().multiplyScalar(-0.34);
+    group.add(pointLabel(ex.foot.pos, '', 'foot'));
+    const el = document.createElement('div');
+    el.className = 'vlabel';
+    el.textContent = CONSTRUCT.nm(ex.foot.name);
+    el.dataset.v = ex.foot.name;
+    el.dataset.foot = '1';
+    const text = new CSS2DObject(el);
+    text.position.copy(at.add(away));
+    group.add(text);
+  }
+  if (spec.showRight !== false && (!ex.height || showH)) {
+    const seg = [];
+    for (const r of ex.right) {
+      const at = new THREE.Vector3(...r.at);
+      const u = new THREE.Vector3(...r.p1).sub(at).setLength(0.26);
+      const v = new THREE.Vector3(...r.p2).sub(at).setLength(0.26);
+      const a = at.clone().add(u), b = a.clone().add(v), c = at.clone().add(v);
+      seg.push(...a.toArray(), ...b.toArray(), ...b.toArray(), ...c.toArray());
+    }
+    if (seg.length) group.add(buildLines(seg, markLine, 7));
+  }
+  return group;
+}
+
+// Vẽ hình + dòng mô tả. Wizard dùng trực tiếp hàm này để xem trước.
+function renderShape(shape) {
+  if (current) disposeGroup(current);
+  const group = new THREE.Group();
+
+  depthMesh = new THREE.Mesh(buildFaces(shape), faceDepth);
+  depthMesh.renderOrder = 0;
+  faceMask = '[]';
+  tintMesh = new THREE.Mesh(depthMesh.geometry, faceTint);
+  tintMesh.renderOrder = 3;
+
+  group.add(depthMesh, tintMesh);
+  group.add(buildEdges(shape, lineVisible, 1));
+  group.add(buildEdges(shape, lineHidden, 2));
+  group.add(buildLabels(shape));
+  group.add(buildExtras(shape));
+
+  scene.add(group);
+  current = group;
+  currentShape = shape;
+  document.getElementById('title').textContent = CONSTRUCT.nmText(shape.desc || shape.title);
+}
+
+// Tên đỉnh / chân đường cao / tên hình theo bảng tên đang dùng (đổi tên điểm: chỉ đổi chữ, không dựng lại hình).
+// Chân đường cao đã thành điểm dựng cùng tên (vd O = AC ∩ BD trùng chân O) thì không vẽ chữ thứ hai.
+function relabel() {
+  if (!current) return;
+  const own = new Set(tools.names());
+  current.traverse(o => {
+    const v = o.isCSS2DObject && o.element.dataset.v;
+    if (!v) return;
+    o.element.textContent = CONSTRUCT.nm(v);
+    if (o.element.dataset.foot) o.visible = !own.has(v);
+  });
+  document.getElementById('title').textContent = CONSTRUCT.nmText(currentShape.desc || currentShape.title);
+}
+
+// Mặt bị ẩn (menu mặt phẳng): dựng lại lớp "tấm chắn" + lớp tô không có các mặt đó,
+// nên nét phía sau mặt ẩn thành nét liền. Nét khuất vẫn chỉ do các mặt của khối quyết định.
+function applyFaceMask(hidden) {
+  const key = JSON.stringify(hidden);
+  if (key === faceMask) return;
+  faceMask = key;
+  depthMesh.geometry.dispose();
+  depthMesh.geometry = tintMesh.geometry = buildFaces(currentShape, hidden);
+}
+
+// key: tên hình nhanh ('quad'…) hoặc một hình dựng theo đề; steps: các bước tự dựng trên hình
+function showShape(key, newPicks, steps = [], names = {}) {
+  const shape = typeof key === 'string' ? SHAPES[key] : key;
+  renderShape(shape);
+  tools.load(shape, steps, names);
+  relabel();
+  knownPoints = tools.points();
+  applyFaceMask(tools.hiddenFaces());
+  // Chọn góc nhìn để các cạnh bên không chồng lên nhau; nút Góc nhìn về lại góc này
+  homeDir = new THREE.Vector3(...BUILDER.bestView(shape, HOME_DIR.toArray()));
+  fitView(shape, true);
+  currentKey = key;
+  document.querySelectorAll('nav button[data-shape]').forEach(b =>
+    b.classList.toggle('on', b.dataset.shape === key));
+
+  fillPointSelects(shape);
+  // Hình mới: các thiết diện cũ không còn hợp (tên cạnh khác) → còn một thiết diện qua 3 điểm cho sẵn / mặc định
+  const keep = newPicks || sections.length;
+  sections = [];
+  activeSec = 0;
+  if (keep) sections.push(newSection(newPicks || defaultPicks()));
+  syncRows();
+  updateSection();
+}
+
+// ------------------------------------------------------------------
+// 4b. THIẾT DIỆN: miền tô bán trong suốt + cạnh màu nổi.
+//     Mỗi cạnh thiết diện nằm trên một mặt của hình nên dùng lại đúng
+//     kỹ thuật vẽ hai lần: nét liền (LessEqual) + nét đứt (GreaterDepth).
+// ------------------------------------------------------------------
+// Tối đa 3 thiết diện cùng lúc, mỗi cái một màu
+const SEC_COLORS = [0xff8a4d, 0xff5fa2, 0xd9dc4a];
+const SEC_CSS = SEC_COLORS.map(c => '#' + c.toString(16).padStart(6, '0'));   // đổi tại chỗ theo chế độ
+const secMats = SEC_COLORS.map(color => {
+  const fill = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0.3,
+    side: THREE.DoubleSide, depthTest: false, depthWrite: false,
+  });
+  const visible = new LineMaterial({ color, linewidth: 3.4 });
+  const hidden = new LineMaterial({ color, linewidth: 2, dashed: true, dashSize: 0.14, gapSize: 0.1 });
+  hidden.depthFunc = THREE.GreaterDepth;
+  hidden.depthWrite = false;
+  return { fill, visible, hidden };
+});
+
+// ------------------------------------------------------------------
+// CHẾ ĐỘ GIẤY VỞ: nền trắng ngà + lưới ô ly (CSS ở #stage), nét đen, khuất xám đậm, nhãn đen, thiết diện /
+// mặt phẳng pastel; giao diện tông sáng. Chỉ đổi màu tại chỗ: không đổi trạng thái, không đổi góc nhìn.
+// Xuất hình (export2d) có màu riêng nên không bị ảnh hưởng. Lựa chọn nhớ trong localStorage.
+// ------------------------------------------------------------------
+const THEME_KEY = 'sabcd.theme';
+let paper = false;
+function setPaper(on) {
+  paper = !!on;
+  document.body.classList.toggle('paper', paper);
+  const T = window.SABCD.theme, c = paper ? T.PAPER : T.DARK;   // bộ màu ở theme.js
+  renderer.setClearColor(c.bg, paper ? 0 : 1);
+  lineVisible.color.set(c.edge);
+  lineVisible.linewidth = paper ? 2.8 : 2.6;
+  lineHidden.color.set(c.hidden);
+  markLine.color.set(c.mark);
+  faceTint.color.set(c.faceTint);
+  faceTint.opacity = c.faceTintOpacity;
+  playHi.color.set(c.playHi);
+  playHiHidden.color.set(c.playHi);
+  secMats.forEach((m, i) => {
+    m.fill.color.set(c.sec[i].fill); m.fill.opacity = c.secOpacity;
+    m.visible.color.set(c.sec[i].line); m.hidden.color.set(c.sec[i].line);
+    SEC_CSS[i] = T.css(c.sec[i].line);
+  });
+  const bs = document.body.style;   // nút nổi + viền chấm điểm theo bộ màu (CSS đọc biến)
+  bs.setProperty('--float-bg', T.css(c.float.bg));
+  bs.setProperty('--float-border', T.css(c.float.border));
+  bs.setProperty('--float-text', T.css(c.float.text));
+  bs.setProperty('--dot-ring', T.css(c.dotRing));
+  document.getElementById('btn-paper')?.setAttribute('aria-pressed', paper);
+  try { localStorage.setItem(THEME_KEY, paper ? 'paper' : 'dark'); } catch { /* bộ nhớ bị chặn: chỉ nhớ trong phiên */ }
+}
+
+// Điểm mặc định khi chọn hình (đều cho thiết diện hợp lệ)
+const DEFAULT_PICKS = {
+  quad:  [{ edge: ['S','A'], t: 0.5 }, { edge: ['S','B'], t: 0.5 }, { edge: ['S','C'], t: 0.5 }],
+  tri:   [{ edge: ['S','A'], t: 0.5 }, { edge: ['A','B'], t: 0.5 }, { edge: ['B','C'], t: 0.5 }],
+  prism: [{ edge: ['A',"A'"], t: 0.5 }, { edge: ['B','C'], t: 0.5 }, { vertex: "C'" }],
+  box:   [{ vertex: "A'" }, { vertex: 'B' }, { vertex: 'D' }],
+};
+// Thanh trượt hơi "hít" vào các tỉ số hay gặp trong đề
+const SNAPS = [1/4, 1/3, 1/2, 2/3, 3/4];
+const snap = t => SNAPS.find(f => Math.abs(t - f) < 0.015) ?? t;
+
+let sections = [];       // { picks, color, hidden } – xem sections.js
+let activeSec = 0;       // thiết diện đang sửa ở tab Thiết diện
+let sectionGroups = [];
+let sectionQueued = false;
+let sectionLabels = [];  // nhãn mọi thiết diện, để điểm tự dựng không đặt trùng tên
+let sectionResults = []; // kết quả tính từng thiết diện (cùng thứ tự với sections)
+const footNames = () => (currentShape.extras?.foot ? [currentShape.extras.foot.name] : []);
+// 3 điểm mặc định; thiết diện thứ 2, 3 lấy điểm ở 1/3, 2/3 cạnh cho khác thiết diện đầu
+const defaultPicks = (k = 0) => (typeof currentKey === 'string' ? DEFAULT_PICKS[currentKey]
+  : DEFAULT_PICKS[currentShape.spec.solid === 'prism' ? 'prism' : 'tri'])   // có SA, AB, BC / AA', BC, C'
+  .map(p => (p.edge && k ? { ...p, t: [0.5, 1 / 3, 2 / 3][k % 3] } : p));
+const newSection = p => ({ picks: structuredClone(p), color: SECS.freeSectionColor(sections), hidden: false });
+const curPicks = () => sections[activeSec]?.picks;
+const ptRows = [...document.querySelectorAll('#cut .pt')];
+const cutMsg = document.getElementById('cut-msg');
+
+function pointLabel(pos, text, cls) {
+  const el = document.createElement('div');
+  el.className = 'spt ' + cls;
+  const span = document.createElement('span');
+  span.textContent = text;
+  el.appendChild(span);
+  const label = new CSS2DObject(el);
+  label.position.set(...pos);
+  return label;
+}
+
+// key: khoá hoạt ảnh (anim.js) – đang chạy thì viền dựng từng cạnh riêng để nét chạy lần lượt quanh đa giác,
+// khép kín rồi miền mới tô dần; đỉnh thiết diện hiện ra khi nét chạy tới
+function buildSection(res, color, key) {
+  const group = new THREE.Group();
+  const m = secMats[color], css = SEC_CSS[color];
+  const fx = key && FX.has(key) && res.status === 'ok';
+  const P = res.status === 'ok' ? res.points.map(p => p.pos) : [], n = P.length;
+  // đỉnh thiết diện gần điểm pos nhất (để biết khi nào nét chạy tới)
+  const vi = pos => P.reduce((b, p, i) => (Math.hypot(...p.map((x, d) => x - pos[d])) < Math.hypot(...P[b].map((x, d) => x - pos[d])) ? i : b), 0);
+  const label = (pos, text, cls) => { const l = pointLabel(pos, text, cls); return fx ? FX.tag(l, key, 'secPt', { i: vi(pos), n }) : l; };
+  if (res.status === 'ok') {
+    const tri = [], seg = [];
+    for (let i = 1; i < n - 1; i++) tri.push(...P[0], ...P[i], ...P[i + 1]);
+    P.forEach((p, i) => seg.push(...p, ...P[(i + 1) % n]));
+
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(tri, 3));
+    const fill = new THREE.Mesh(g, m.fill);
+    fill.renderOrder = 4;
+    if (!fx) group.add(fill, buildLines(seg, m.visible, 5), buildLines(seg, m.hidden, 6));
+    else {
+      group.add(FX.tag(fill, key, 'fill', { n }));
+      P.forEach((a, i) => {
+        const b = P[(i + 1) % n], e = [...a, ...b];
+        for (const l of [buildLines(e, m.visible, 5), buildLines(e, m.hidden, 6)]) group.add(FX.tag(l, key, 'edge', { a, b, i, n }));
+      });
+    }
+    for (const p of res.points) if (p.isNew) group.add(label(p.pos, p.label, 'new'));
+  }
+  for (const q of res.inputs) if (q.pos && !q.named) group.add(res.status === 'ok' ? label(q.pos, q.label, 'in') : pointLabel(q.pos, q.label, 'in'));
+  group.traverse(o => { if (o.isCSS2DObject) o.element.style.setProperty('--sec', css); });
+  return group;
+}
+
+function updateSection() {
+  sectionGroups.forEach(disposeGroup);
+  sectionGroups = [];
+  // điểm tự dựng: lấy vị trí từ các bước dựng (tính lại mỗi lần, không lưu toạ độ)
+  sectionResults = SECS.computeSections(currentShape, sections, tools.result().objs, tools.names());
+  sectionLabels = sectionResults.flatMap(SECS.labelsOf);
+  sectionResults.forEach((res, i) => {
+    if (sections[i].hidden) return;
+    const g = buildSection(res, sections[i].color, 'sec:' + i);
+    scene.add(g);
+    sectionGroups.push(g);
+  });
+  renderList();
+  renderSecTabs();
+  const res = sectionResults[activeSec];
+  document.getElementById('cut').classList.toggle('empty', !res);
+  dirty();
+  if (!res) { cutMsg.textContent = 'Chưa có thiết diện. Bấm "+ Thiết diện mới".'; return; }
+  // chữ đầu mỗi ô theo đúng nhãn trên hình (né tên điểm tự dựng nên có thể là P, Q…)
+  ptRows.forEach((row, i) => { row.querySelector('b').textContent = res.inputs[i].label; });
+
+  cutMsg.className = res.status === 'ok' ? '' : 'warn';
+  cutMsg.textContent = res.message + '.';
+  if (res.notes.length) {
+    const s = document.createElement('small');
+    s.textContent = res.notes.join(' · ');
+    cutMsg.appendChild(s);
+  }
+}
+
+// Kéo thanh trượt: gom các lần cập nhật vào 1 khung hình cho mượt
+function requestSection() {
+  if (sectionQueued) return;
+  sectionQueued = true;
+  requestAnimationFrame(() => { sectionQueued = false; updateSection(); });
+}
+
+const pickKey = p => p.vertex ? 'v:' + p.vertex : p.point ? 'p:' + p.point : 'e:' + p.edge.join('|');
+
+// Điểm tự dựng cũng chọn được làm M, N, P
+function fillPointSelects(shape) {
+  const mine = tools.result().objs;
+  const N = CONSTRUCT.nm;
+  const opts =
+    Object.keys(shape.vertices).map(n => `<option value="v:${n}">Đỉnh ${N(n)}</option>`).join('') +
+    Object.values(mine).filter(o => o.kind === 'point').map(o => `<option value="p:${o.id}">Điểm ${N(o.id)} (tự dựng)</option>`).join('') +
+    shape.edges.map(([a, b]) => `<option value="e:${a}|${b}">Cạnh ${N(a)}${N(b)}</option>`).join('');
+  for (const row of ptRows) row.querySelector('select').innerHTML = opts;
+}
+
+// Điểm tự dựng đang làm M/N/P mà bị xoá (hoặc hoàn tác) thì trả ô đó về điểm mặc định
+function refreshPicks() {
+  // Chỉ thay điểm đã bị xoá; điểm còn bước dựng mà tạm chưa xác định (đang kéo điểm tự do) thì giữ
+  const names = tools.names(), def = defaultPicks();
+  for (const sec of sections) sec.picks = sec.picks.map((p, i) => (p.point && !names.includes(p.point) ? structuredClone(def[i]) : p));
+  fillPointSelects(currentShape);
+  syncRows();
+}
+
+// Ô bên phải: tỉ số tính từ đỉnh đầu cạnh, vd M ∈ SA thì là SM/SA
+function showT(row, p) {
+  row.querySelector('output').textContent = p.edge ? SECTION.formatT(p.t) : '';
+}
+
+function syncRows() {
+  if (!curPicks()) return;
+  ptRows.forEach((row, i) => {
+    const p = curPicks()[i];
+    row.querySelector('select').value = pickKey(p);
+    row.classList.toggle('is-vertex', !p.edge);
+    if (p.edge) row.querySelector('.cs').value = p.t;
+    showT(row, p);
+  });
+}
+
+ptRows.forEach((row, i) => {
+  const sel = row.querySelector('select');
+  const range = row.querySelector('.cs');
+  sel.addEventListener('change', () => {
+    const v = sel.value;
+    const picks = curPicks();
+    picks[i] = v.startsWith('v:') ? { vertex: v.slice(2) }
+             : v.startsWith('p:') ? { point: v.slice(2) }
+             : { edge: v.slice(2).split('|'), t: picks[i].t ?? 0.5 };
+    syncRows();
+    clearSample();
+    requestSection();
+  });
+  range.addEventListener('input', () => {
+    const p = curPicks()[i];
+    p.t = snap(parseFloat(range.value));
+    showT(row, p);
+    clearSample();
+    requestSection();
+  });
+});
+
+// Đề mẫu: nằm ở bảng Mẫu (saves.js), dựng lại qua state.js. Ở đây chỉ còn dòng hiện đề bài.
+const sampleText = document.getElementById('sample-text');
+
+// Người dùng tự đổi điểm/hình thì không còn là đề mẫu nữa
+function clearSample() {
+  sampleText.textContent = '';
+}
+
+// Bật: chưa có thiết diện nào thì cắt bằng 3 điểm mặc định. Tắt: bỏ mọi thiết diện.
+function setCut(on) {
+  if (on && !sections.length) { sections.push(newSection(defaultPicks())); FX.start('sec:0', 'section'); }
+  if (!on) sections = [];
+  activeSec = Math.min(activeSec, Math.max(0, sections.length - 1));
+  syncRows();
+  updateSection();
+}
+// Xoá thiết diện đang sửa; hết thiết diện thì thu bảng
+document.getElementById('btn-cutoff').addEventListener('click', () => {
+  sectionAction(activeSec, 'del');
+  if (!sections.length) openSheet(null);
+});
+
+// Hàng nút các thiết diện (đổi thiết diện đang sửa) + "Thêm" khi chưa đủ 3
+const secTabs = document.getElementById('sec-tabs');
+function renderSecTabs() {
+  secTabs.innerHTML = '';
+  sections.forEach((sec, i) => {
+    const b = document.createElement('button');
+    const res = sectionResults[i];
+    b.textContent = res && res.status === 'ok' ? res.name : res ? res.inputs.map(q => q.label).join('') : '…';
+    if (sec.hidden) b.insertAdjacentHTML('afterbegin', ICON.svg('eye-off'));
+    b.style.color = SEC_CSS[sec.color];
+    b.classList.toggle('on', i === activeSec);
+    b.addEventListener('click', () => { activeSec = i; syncRows(); updateSection(); });
+    secTabs.appendChild(b);
+  });
+  if (sections.length < SECS.MAX_SECTIONS) {
+    const b = document.createElement('button');
+    b.className = 'add';
+    ICON.set(b, 'plus', 'Thiết diện mới');
+    b.addEventListener('click', () => addSection(defaultPicks(sections.length)));
+    secTabs.appendChild(b);
+  }
+}
+// Thêm một thiết diện (đủ 3 thì thay thiết diện đang sửa) và chuyển sang sửa nó
+function addSection(picks) {
+  if (sections.length < SECS.MAX_SECTIONS) {
+    sections.push(newSection(picks));
+    activeSec = sections.length - 1;
+    FX.start('sec:' + activeSec, 'section');   // thiết diện mới: nét chạy quanh rồi tô
+  } else {
+    sections[activeSec].picks = structuredClone(picks);
+    FX.start('sec:' + activeSec, 'section');
+    tools.say('Đã đủ ' + SECS.MAX_SECTIONS + ' thiết diện: thay thiết diện đang sửa', true);
+  }
+  clearSample();
+  syncRows();
+  updateSection();
+}
+
+// ------------------------------------------------------------------
+// 4c. DỰNG HÌNH THEO ĐỀ (wizard.js). Hình đang xem có spec thì mở để sửa tiếp.
+// ------------------------------------------------------------------
+let beforeWizard = null;
+const wizard = initWizard({
+  preview: (shape, fit) => { renderShape(shape); if (fit) fitView(shape); },
+  // Sửa hình đang có: các bước tự dựng giữ lại, bước nào không còn dựng được thì bỏ
+  finish: shape => {
+    const steps = CONSTRUCT.prune(shape, beforeWizard.steps);
+    showShape(shape, null, steps, beforeWizard.names);
+    setCut(beforeWizard.cut);
+    addRecent(shape.spec, steps, tools.alias());
+    saves.setPrev(beforeWizard.pre);
+    const lost = beforeWizard.steps.length - steps.length;
+    if (lost) tools.say('Bỏ ' + lost + ' đối tượng tự dựng không còn dựng được trên hình mới', true);
+    tools.suggest(true);   // gợi ý ngay các giao điểm hay dùng (O = AC ∩ BD…)
+  },
+  cancel: () => {
+    showShape(beforeWizard.key, null, beforeWizard.steps, beforeWizard.names);
+    sections = beforeWizard.sections;
+    activeSec = 0;
+    syncRows();
+    updateSection();
+  },
+});
+document.getElementById('btn-build').addEventListener('click', () => {
+  beforeWizard = { pre: saves.capture(), key: currentKey, sections: structuredClone(sections), cut: sections.length > 0, steps: tools.steps(), names: tools.alias() };
+  clearSample();
+  setCut(false);
+  tools.setVisible(false);   // đang xem trước hình mới thì ẩn các điểm dựng trên hình cũ
+  wizard.open(currentShape.spec);
+});
+
+// ------------------------------------------------------------------
+// 4d. HÌNH GẦN ĐÂY: 5 hình dựng gần nhất, lưu spec trong localStorage.
+//     Trình duyệt chặn bộ nhớ (ẩn danh…) thì vẫn chạy, chỉ là không nhớ.
+// ------------------------------------------------------------------
+const RECENT_KEY = 'sabcd.recent.v1';
+const RECENT_MAX = 5;
+const recentRow = document.getElementById('recent-row');
+
+function loadRecent() {
+  let list;
+  try { list = JSON.parse(localStorage.getItem(RECENT_KEY) || '[]'); } catch { return []; }
+  if (!Array.isArray(list)) return [];
+  // bỏ mục hỏng (dữ liệu cũ, bị sửa tay…): dựng thử được mới giữ
+  return list.filter(spec => { try { BUILDER.buildFromSpec(spec); return true; } catch { return false; } })
+             .slice(0, RECENT_MAX);
+}
+
+// Cùng một hình (chỉ khác bật/tắt đường cao, góc vuông, các bước tự dựng) thì coi là một mục
+const shapeKeyOf = s => JSON.stringify({ ...s, showHeight: undefined, showRight: undefined, steps: undefined, names: undefined });
+
+// Các bước tự dựng đã lưu: chỉ giữ bước còn dựng được trên hình
+function savedSteps(spec, shape) {
+  const steps = Array.isArray(spec.steps) ? spec.steps.filter(s => s && typeof s.id === 'string') : [];
+  try { return CONSTRUCT.prune(shape, steps); } catch { return []; }
+}
+
+// Lưu hình kèm các bước tự dựng trên nó (và tên đã đổi, v4)
+function addRecent(spec, steps = [], names = {}) {
+  const key = shapeKeyOf(spec);
+  const { steps: _s, names: _n, ...bare } = spec;
+  const list = [{ ...bare, steps, ...(Object.keys(names).length ? { names } : {}) }, ...loadRecent().filter(s => shapeKeyOf(s) !== key)].slice(0, RECENT_MAX);
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch { /* không lưu được thì thôi */ }
+  renderRecent(list);
+}
+
+function renderRecent(list = loadRecent()) {
+  recentRow.querySelectorAll('.recent').forEach(b => b.remove());
+  for (const spec of list) {
+    const shape = BUILDER.buildFromSpec(spec);
+    const n = savedSteps(spec, shape).length;
+    const b = document.createElement('button');
+    b.className = 'recent';
+    ICON.set(b, 'history', shape.short + (n ? ' · ' + n + ' bước dựng' : ''));
+    b.title = shape.desc;
+    b.addEventListener('click', () => {
+      const { steps: _s, names, ...bare } = spec;
+      try { saves.replaceWith(STATE.deserialize({ v: STATE.VERSION, shape: bare, steps: savedSteps(spec, shape), names })); }
+      catch (e) { tools.say('Hình này không mở được: ' + e.message, true); }
+    });
+    recentRow.appendChild(b);
+  }
+}
+renderRecent();
+
+// Vừa dựng thêm/xoá trên hình: cập nhật mục hình gần đây (hình chưa có trong đó thì
+// chỉ thêm khi đã có bước dựng)
+function saveSteps() {
+  const spec = currentShape.spec;
+  if (!spec) return;
+  const steps = tools.steps();
+  if (steps.length || loadRecent().some(s => shapeKeyOf(s) === shapeKeyOf(spec))) addRecent(spec, steps, tools.alias());
+}
+
+// ------------------------------------------------------------------
+// 4e. TỰ DỰNG HÌNH (tools.js vẽ + thao tác, construct.js tính)
+// ------------------------------------------------------------------
+const tools = initTools({
+  scene, camera, canvas: renderer.domElement, controls,
+  // tên không được dùng cho điểm mới: nhãn thiết diện đang hiện, chân đường cao H/O
+  reserved: () => sectionLabels.concat(footNames()),
+  // Các thiết diện đang hiện (cắt được), mỗi cái một mặt phẳng. ref: 'plane:MNP' khi M, N, P đều có tên.
+  // reserved: tên điểm mới không được trùng (nhãn các thiết diện khác); nhãn của chính nó được dùng lại.
+  sectionPlanes: () => sections.flatMap((sec, index) => {
+    const res = sectionResults[index];
+    if (sec.hidden || !res || res.status !== 'ok') return [];
+    const ref = SECS.sectionRef(sec.picks), names = sec.picks.map(p => p.vertex || p.point);
+    return [{ index, poly: res.points.map(p => p.pos), ref, picks: structuredClone(sec.picks), color: SEC_CSS[sec.color],
+              points: res.points.filter(p => p.isNew).map(p => ({ label: p.label, pos: p.pos })),   // đỉnh mới (P ∈ SD): công cụ Tỉ số chọn được
+              inputs: res.inputs.map(q => q.label),   // nhãn đang hiện của 3 ô: đặt tên thì giữ đúng nhãn này (TEN-02)
+              reserved: sectionResults.filter((_, k) => k !== index).flatMap(SECS.labelsOf).concat(footNames()),
+              label: '(' + (ref ? CONSTRUCT.nmj(names) : res.inputs.map(q => q.label).join('')) + ')' }];
+  }),
+  // Vừa đặt tên cho M, N, P của thiết diện thứ index: thiết diện đó chuyển sang các điểm có tên
+  nameSection: (index, names) => {
+    if (!sections[index]) return;
+    sections[index].picks = names.map(n => (currentShape.vertices[n] ? { vertex: n } : { point: n }));
+    clearSample();
+    syncRows();
+    updateSection();
+  },
+  // Menu mặt phẳng / nút nhanh → "Cắt thiết diện": thêm thiết diện bằng mặt phẳng qua 3 điểm có tên này
+  useForCut: names => addSection(names.map(n => (currentShape.vertices[n] ? { vertex: n } : { point: n }))),
+  // Menu đối tượng của một thiết diện (chưa thành mặt phẳng dựng): xoá thiết diện đó
+  sectionAction: (i, act) => sectionAction(i, act),
+  onChange: (commit, travelled) => {
+    if (commit) { refreshPicks(); keepInView(travelled); saveSteps(); }
+    relabel();
+    applyFaceMask(tools.hiddenFaces());
+    requestSection();
+    renderList();
+    renderCutFrom();
+    code?.changed();
+  },
+});
+
+// ------------------------------------------------------------------
+// 4g. DANH SÁCH: mọi đối tượng theo nhóm; bấm tên = chọn (sáng lên trên hình), mỗi dòng có ẩn/hiện, màu, xoá
+// ------------------------------------------------------------------
+const listEl = document.getElementById('obj-list');
+function renderList() {
+  if (openPane !== 'list') return;
+  const it = tools.items(), chosen = tools.selected();
+  const secs = sections.map((sec, i) => {
+    const res = sectionResults[i], ref = SECS.sectionRef(sec.picks);
+    const name = ref ? CONSTRUCT.nmj(CONSTRUCT.names(ref.slice(6))) : res ? res.inputs.map(q => q.label).join('') : '';
+    return { id: 'sec:' + i, text: 'Thiết diện (' + name + ')', detail: res && res.status === 'ok' ? res.name : 'không cắt được',
+             hidden: sec.hidden, color: SEC_CSS[sec.color] };
+  });
+  const groups = [['Điểm', it.points], ['Đường', it.lines], ['Mặt phẳng', it.planes], ['Thiết diện', secs], ['Giao tuyến', it.meets]];
+  listEl.innerHTML = '';
+  for (const [title, rows] of groups) {
+    if (!rows.length) continue;
+    listEl.insertAdjacentHTML('beforeend', '<h3>' + title + '</h3>');
+    for (const r of rows) {
+      const li = document.createElement('div');
+      li.className = 'li' + (r.hidden ? ' off' : '');
+      li.dataset.id = r.id;
+      li.innerHTML = '<button class="li-name"></button>' +
+        (r.open !== undefined ? '<button class="ic" data-act="open"></button>' : '') + '<button class="ic" data-act="hide"></button>' +
+        '<button class="ic" data-act="color" aria-label="Đổi màu"><span class="swatch"></span></button><button class="ic" data-act="del" aria-label="Xoá">' + ICON.svg('trash-2') + '</button>';
+      const nameBtn = li.firstChild;
+      nameBtn.textContent = r.text;
+      if (r.detail) nameBtn.insertAdjacentHTML('beforeend', '<small></small>'), nameBtn.lastChild.textContent = r.detail;
+      nameBtn.classList.toggle('sel', chosen === r.id);
+      li.querySelector('[data-act=hide]').innerHTML = ICON.svg(r.hidden ? 'eye-off' : 'eye');
+      li.querySelector('[data-act=hide]').setAttribute('aria-label', r.hidden ? 'Hiện' : 'Ẩn');
+      li.querySelector('[data-act=color]').style.color = r.color;
+      const ob = li.querySelector('[data-act=open]');   // mặt phẳng: mở rộng thành tấm lớn / thu lại
+      if (ob) { ob.innerHTML = ICON.svg(r.open ? 'minimize-2' : 'maximize-2'); ob.setAttribute('aria-label', r.open ? 'Thu lại' : 'Mở rộng'); }
+      listEl.appendChild(li);
+    }
+  }
+  if (!listEl.children.length) listEl.innerHTML = '<p class="lempty">Chưa có đối tượng nào. Mở tab Dựng hoặc Thiết diện để tạo.</p>';
+}
+listEl.addEventListener('click', e => {
+  const b = e.target.closest('button'), li = e.target.closest('.li');
+  if (!b || !li) return;
+  const id = li.dataset.id, act = b.dataset.act;
+  if (id.startsWith('sec:')) return sectionAction(+id.slice(4), act);
+  if (!act) tools.select(id);
+  else tools.listAction(id, act);
+  renderList();
+});
+// Ẩn/hiện, đổi màu (màu đang có ở thiết diện khác thì đổi chỗ cho nhau), xoá một thiết diện
+function sectionAction(i, act) {
+  const sec = sections[i];
+  if (!act) { tools.select('sec:' + i); renderList(); return; }
+  if (act === 'hide') sec.hidden = !sec.hidden;
+  if (act === 'color') {
+    const next = (sec.color + 1) % SEC_COLORS.length, other = sections.find(q => q !== sec && q.color === next);
+    if (other) other.color = sec.color;
+    sec.color = next;
+  }
+  if (act === 'del') {
+    FX.finishAll();   // khoá hoạt ảnh theo chỉ số thiết diện: xoá thì dừng hết cho khỏi lệch
+    sections.splice(i, 1);
+    if (i < activeSec) activeSec--;
+    activeSec = Math.min(activeSec, Math.max(0, sections.length - 1));
+    syncRows();
+  }
+  if (act !== 'color') tools.select(null);
+  updateSection();
+}
+
+// Vừa dựng ra điểm nằm ngoài màn hình (vd giao điểm trên phần kéo dài): căn lại khung mượt, giữ hướng nhìn.
+// Hoàn tác / Làm lại (travelled) không bao giờ đổi góc nhìn.
+// Nơi DUY NHẤT tự căn khung sau khi dựng (fitView chỉ chạy khi người dùng đổi hình / bấm Góc nhìn).
+let reframe = null;
+let knownPoints = [];
+function keepInView(travelled) {
+  const V = window.SABCD.view, v = new THREE.Vector3();
+  const cur = tools.points(), fresh = V.freshPoints(knownPoints, cur).filter(p => nearFigure(currentShape, p));
+  knownPoints = cur;
+  const ndc = fresh.map(p => { v.set(...p).project(camera); return [v.x, v.y]; });
+  if (!V.shouldReframe(ndc, travelled)) return;
+  const pts = framePoints(currentShape);
+  const sphere = new THREE.Box3().setFromPoints(pts).getBoundingSphere(new THREE.Sphere());
+  fitRadius = sphere.radius;
+  panCenter.copy(sphere.center);
+  reframe = {
+    tween: window.SABCD.view.reframeTween(
+      { target: controls.target.toArray(), zoom: camera.zoom },
+      { target: sphere.center.toArray(), zoom: Math.min(camera.zoom, fitZoom()) }, camMs(350)),
+    offset: camera.position.clone().sub(controls.target),
+  };
+}
+// Chạm vào hình giữa chừng thì huỷ căn khung, trả điều khiển ngay
+controls.addEventListener('start', () => { reframe = null; });
+function stepReframe(dt) {
+  if (!reframe) return;
+  const r = reframe.tween.step(dt);
+  controls.target.set(...r.target);
+  camera.position.copy(controls.target).add(reframe.offset);
+  camera.zoom = r.zoom;
+  camera.updateProjectionMatrix();
+  if (r.done) reframe = null;
+}
+// Đang dùng công cụ dựng (chạm để dựng) hay chế độ Chọn (chạm để chọn, mở menu mặt phẳng)
+function setBuilding(on) {
+  document.body.classList.toggle('building', on);
+  tools.setActive(on);
+}
+document.querySelectorAll('#tools [data-tool]').forEach(b => b.addEventListener('click', () => setBuilding(true)));
+document.getElementById('t-select').addEventListener('click', () => setBuilding(false));
+document.getElementById('t-exit').addEventListener('click', () => { tools.suggest(false); setBuilding(false); });
+
+// ------------------------------------------------------------------
+// 4f. THANH TAB + BẢNG TRƯỢT: bấm tab mở bảng (tối đa ~45% màn), bấm lại tab hoặc vuốt xuống
+//     để thu. Thu bảng không xoá/ẩn gì trên hình, công cụ đang dùng vẫn chạy.
+// ------------------------------------------------------------------
+const sheet = document.getElementById('sheet');
+const tabBtns = [...document.querySelectorAll('#tabs button')];
+const PANE_TITLE = { shape: 'Hình', build: 'Dựng hình', cut: 'Thiết diện', view: 'Xem', more: 'Khác', list: 'Danh sách đối tượng',
+  book: 'Vở bài, Mẫu', notebook: 'Vở bài', presets: 'Mẫu', share: 'Chia sẻ', code: 'Mã đề' };
+// bảng con: tab / nút cha sáng lên (Vở bài, Mẫu nằm ở nút Vở góc trên trái; Chia sẻ ở tab Khác)
+const PARENT_TAB = { notebook: 'book', presets: 'book', share: 'more', code: 'book' };
+const bookBtn = document.getElementById('btn-book'), listBtn = document.getElementById('btn-list');
+let openPane = null, sheetClose = 0, swapTimer = 0, heightTimer = 0;
+const sheetBody = sheet.querySelector('.sheet-body');
+function applyPane(name) {
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === name));
+  document.getElementById('sheet-title').textContent = PANE_TITLE[name] || '';
+}
+// Nút / chip của bảng hiện lần lượt, cách nhau ~20 ms (chỉ opacity + transform; tắt khi giảm chuyển động)
+function stagger() {
+  const pane = document.querySelector('.pane.on');
+  if (!pane || FX.mode() === 'none') return;
+  const items = [...pane.querySelectorAll('.chips > *, .tools > *, .row.big > *, .row > button, .stack > *')].slice(0, 14);
+  items.forEach((el, i) => { el.classList.remove('stag'); el.style.setProperty('--i', Math.min(i, 10)); });
+  void pane.offsetWidth;
+  items.forEach(el => el.classList.add('stag'));
+  setTimeout(() => items.forEach(el => el.classList.remove('stag')), MOTION.DUR.mid + 260);
+}
+// Nội dung bảng theo tab đang mở (chạy sau khi đổi pane, trước khi đo chiều cao)
+function fillPane(name) {
+  if (name === 'cut' && !sections.length) setCut(true);   // mở tab Thiết diện mà chưa có thiết diện nào thì cắt ngay bằng 3 điểm mặc định
+  renderList();
+  renderCutFrom();
+  if (PARENT_TAB[name] || name === 'book') saves?.render(name);
+  if (name === 'code') code?.open();
+}
+// Đổi tab khi bảng đang mở: nội dung cũ mờ ra, bảng KHÔNG đóng rồi mở lại; nội dung mới mờ vào, chiều cao bảng đổi mượt
+function swapPane() {
+  const name = openPane;
+  sheetBody.classList.remove('swap');
+  if (!name) return;
+  const h0 = sheet.offsetHeight;
+  clearTimeout(heightTimer);
+  sheet.classList.remove('vheight');
+  sheet.style.height = '';
+  applyPane(name);
+  fillPane(name);
+  const h1 = sheet.offsetHeight;
+  occHint = 'swap';
+  syncOcc();                                   // đo bảng ở chiều cao đích rồi mới bắt đầu hạ / nâng hình
+  if (h0 !== h1) {
+    sheet.style.height = h0 + 'px';
+    sheet.classList.add('vheight');
+    void sheet.offsetHeight;
+    sheet.style.height = h1 + 'px';
+    heightTimer = setTimeout(() => { sheet.classList.remove('vheight'); sheet.style.height = ''; }, MOTION.DUR.mid + 40);
+  }
+  stagger();
+}
+function openSheet(name) {
+  const was = sheet.classList.contains('open');
+  const prev = openPane;
+  openPane = name;
+  clearTimeout(sheetClose);
+  clearTimeout(swapTimer);
+  const parent = PARENT_TAB[name] || name;
+  tabBtns.forEach(b => b.classList.toggle('on', b.dataset.pane === parent));
+  bookBtn.classList.toggle('on', parent === 'book');
+  listBtn.classList.toggle('on', parent === 'list');
+  if (name && was && prev && prev !== name && FX.mode() !== 'none' && !isLand()) {
+    sheetBody.classList.add('swap');   // nội dung cũ mờ ra, rồi đổi pane
+    swapTimer = setTimeout(swapPane, MOTION.DUR.fast * 0.6);
+    return;
+  }
+  sheetBody.classList.remove('swap');
+  sheet.classList.toggle('open', !!name);
+  // Đóng bảng: trượt xuống rồi mới ẩn hẳn; mở: lò xo. Hình dời cùng nhịp (syncOcc)
+  sheet.classList.toggle('closing', !name && was && FX.mode() !== 'none' && !isLand());
+  if (sheet.classList.contains('closing')) sheetClose = setTimeout(() => { sheet.classList.remove('closing'); syncOcc(); }, MOTION.DUR.mid + 30);
+  if (name) {   // đang đóng thì giữ nội dung cũ cho tới khi bảng khuất hẳn
+    applyPane(name);
+    fillPane(name);
+  } else { renderList(); renderCutFrom(); }
+  clearTimeout(heightTimer);
+  sheet.classList.remove('vheight');
+  sheet.style.height = '';
+  occHint = name ? (was ? 'swap' : 'open') : 'close';
+  syncOcc();
+  if (name && !was) stagger();
+}
+document.querySelectorAll('nav [data-go]').forEach(b => b.addEventListener('click', () => openSheet(b.dataset.go)));
+
+// Tab Thiết diện: nút nhanh các mặt phẳng đã dựng có 3 điểm có tên → cắt thiết diện bằng mặt phẳng đó
+const cutFrom = document.getElementById('cut-from');
+function renderCutFrom() {
+  if (openPane !== 'cut') return;
+  const list = tools.cutChoices();
+  document.getElementById('cut-from-title').hidden = !list.length;
+  cutFrom.innerHTML = '';
+  for (const c of list) {
+    const b = document.createElement('button');
+    b.textContent = c.label;
+    b.style.color = c.color;
+    b.addEventListener('click', () => { tools.useForCut(c.names); renderCutFrom(); });
+    cutFrom.appendChild(b);
+  }
+}
+tabBtns.forEach(b => b.addEventListener('click', () => openSheet(openPane === b.dataset.pane ? null : b.dataset.pane)));
+// Hàng chip vuốt ngang: còn chip phía bên phải thì mép phải mờ dần (báo vuốt tiếp được)
+{
+  const fade = row => row.classList.toggle('more', row.scrollLeft + row.clientWidth < row.scrollWidth - 2);
+  // Chỗ thở cuối hàng vừa đủ để vị trí cuộn xa nhất cũng dừng đúng mép một chip (chip đầu không bị khuất nửa)
+  const pad = row => {
+    row.style.paddingRight = '';
+    const over = row.scrollWidth - row.clientWidth, first = row.firstElementChild;
+    if (over > 0 && first) {
+      const s = [...row.children].map(c => c.offsetLeft - first.offsetLeft).find(v => v >= over - 0.5);
+      if (s != null) row.style.paddingRight = parseFloat(getComputedStyle(row).paddingRight) + s - over + 'px';
+    }
+    fade(row);
+  };
+  // đổi chỗ thở sau khung hình này (không đổi bố cục ngay trong lúc ResizeObserver đang báo)
+  const ro = new ResizeObserver(es => es.forEach(e => requestAnimationFrame(() => pad(e.target))));
+  for (const row of document.querySelectorAll('nav .row.chips')) {
+    row.addEventListener('scroll', () => fade(row), { passive: true });
+    new MutationObserver(() => pad(row)).observe(row, { childList: true, subtree: true, characterData: true });
+    ro.observe(row);
+  }
+}
+// Nút tròn trên cùng: bấm lại (hoặc đang ở bảng con của nó) thì thu bảng
+bookBtn.addEventListener('click', () => openSheet(openPane && (PARENT_TAB[openPane] || openPane) === 'book' ? null : 'book'));
+listBtn.addEventListener('click', () => openSheet(openPane === 'list' ? null : 'list'));
+// Vuốt xuống ở mép trên bảng: bảng đi theo ngón tay, quá 60px thì thu lại
+{
+  const grab = sheet.querySelector('.grab');
+  let y0 = null;
+  grab.addEventListener('pointerdown', e => { y0 = e.clientY; grab.setPointerCapture(e.pointerId); });
+  grab.addEventListener('pointermove', e => {
+    if (y0 !== null) sheet.style.transform = 'translateY(' + Math.max(0, e.clientY - y0) + 'px)';
+  });
+  const end = e => {
+    if (y0 === null) return;
+    const dy = e.clientY - y0;
+    y0 = null;
+    // vuốt đủ xa: bảng trượt tiếp xuống từ đúng chỗ ngón tay buông (không giật về rồi mới trượt)
+    if (dy > 60) { sheet.style.setProperty('--drag', dy + 'px'); openSheet(null); setTimeout(() => sheet.style.removeProperty('--drag'), 260); }
+    if (dy <= 60 && dy > 0) {   // chưa đủ xa: bảng trượt mượt về chỗ cũ
+      sheet.style.transition = 'transform var(--d-mid) var(--ease)';
+      setTimeout(() => { sheet.style.transition = ''; }, MOTION.DUR.mid + 20);
+    }
+    sheet.style.transform = '';
+  };
+  grab.addEventListener('pointerup', end);
+  grab.addEventListener('pointercancel', end);
+}
+
+// ------------------------------------------------------------------
+// 4g. TRẢI HÌNH (unfold.js): mỗi mặt là một nhóm riêng, khi mở chỉ đổi MA TRẬN của nhóm
+//     (không dựng lại hình học). Nét khuất vẫn do kỹ thuật vẽ hai lần: mặt nào cũng ghi depth.
+//     Cạnh bản lề do mặt cha vẽ; cạnh chung không phải bản lề thì chỉ vẽ một bản khi hình còn kín.
+// ------------------------------------------------------------------
+const UNFOLD = window.SABCD.unfold;
+const UNF_MS = 3000;          // một lượt trải / gấp
+let unf = null;               // { net, root, faces, k, play, top, cam, hidden, saved }
+const unfEl = {
+  k: document.getElementById('unf-k'), pct: document.getElementById('unf-pct'),
+  play: document.getElementById('unf-play'), info: document.getElementById('unf-info'),
+};
+const setVis = (g, v) => { g.visible = v; g.traverse(o => { if (o.isCSS2DObject) o.visible = v; }); };
+const fmtArea = x => {
+  const nice = UNFOLD.niceNum(x), dec = (Math.round(x * 100) / 100).toString().replace('.', ',');
+  return nice === dec ? dec : nice + ' ≈ ' + dec;
+};
+
+function enterUnfold() {
+  if (unf || play) return;
+  stopSpin();
+  setBuilding(false);
+  openSheet(null);
+  const shape = currentShape, V = shape.vertices;
+  const net = UNFOLD.unfold(shape);
+  const root = new THREE.Group();
+  const drawn = new Set();
+  const faces = net.faces.map((face, i) => {
+    const fg = new THREE.Group();
+    fg.matrixAutoUpdate = false;
+    const pos = [];
+    for (let j = 1; j < face.length - 1; j++) for (const n of [face[0], face[j], face[j + 1]]) pos.push(...V[n]);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const depth = new THREE.Mesh(geo, faceDepth), tint = new THREE.Mesh(geo, faceTint);
+    depth.renderOrder = 0; tint.renderOrder = 3;
+    fg.add(depth, tint);
+
+    const h = net.hinges[i], seg = [], dupSeg = [];
+    face.forEach((a, j) => {
+      const b = face[(j + 1) % face.length];
+      if (h && ((a === h.a && b === h.b) || (a === h.b && b === h.a))) return;   // bản lề: mặt cha vẽ
+      const key = [a, b].sort().join('|');
+      (drawn.has(key) ? dupSeg : seg).push(...V[a], ...V[b]);
+      drawn.add(key);
+    });
+    const dups = [];
+    if (seg.length) fg.add(buildLines(seg, lineVisible, 1), buildLines(seg, lineHidden, 2));
+    if (dupSeg.length) dups.push(buildLines(dupSeg, lineVisible, 1), buildLines(dupSeg, lineHidden, 2));
+    dups.forEach(l => fg.add(l));
+
+    const cen = face.reduce((c, n) => c.map((x, d) => x + V[n][d] / face.length), [0, 0, 0]);
+    const el = document.createElement('div');
+    el.className = 'alabel';
+    el.textContent = UNFOLD.niceNum(net.areas[i]);
+    const area = new CSS2DObject(el);
+    area.position.set(...cen);
+    fg.add(area);
+    root.add(fg);
+    return { fg, dups, area };
+  });
+  // Nhãn đỉnh: mỗi CHỖ một nhãn (bản sao trùng chỗ gộp lại, unfold.netLabels); dựng sẵn đủ số bản sao tối đa
+  // của mỗi đỉnh, mỗi mức k chỉ đặt lại vị trí / ẩn bớt
+  const labels = {};
+  for (const n of Object.keys(V)) {
+    labels[n] = shape.faces.filter(f => f.includes(n)).map(() => { const l = vertexLabel(n, new THREE.Vector3()); root.add(l); return l; });
+  }
+
+  // Khung nhìn cho CẢ quá trình mở: bao mọi vị trí của mọi mặt ở các mức k (tính một lần, giữ nguyên)
+  const all = [];
+  for (let j = 0; j <= 20; j++) for (const P of net.verts(j / 20)) for (const p of P) all.push(new THREE.Vector3(...p));
+  const sphere = new THREE.Box3().setFromPoints(all).getBoundingSphere(new THREE.Sphere());
+
+  const hidden = [current, ...sectionGroups];
+  hidden.forEach(g => setVis(g, false));
+  tools.setVisible(false);
+  scene.add(root);
+  unf = { net, root, faces, labels, k: 0, play: 0, top: false, cam: null, hidden, sphere, shape };
+  document.body.classList.add('unfolding');
+  setUnfoldK(0);
+  // Co khung một lần, mượt, giữ hướng nhìn: từ đây mọi mặt luôn nằm trong màn
+  fitRadius = sphere.radius;
+  panCenter.copy(sphere.center);
+  reframe = {
+    tween: window.SABCD.view.reframeTween({ target: controls.target.toArray(), zoom: camera.zoom },
+      { target: sphere.center.toArray(), zoom: Math.min(camera.zoom, fitZoom()) }, camMs(500)),
+    offset: camera.position.clone().sub(controls.target),
+  };
+}
+
+function setUnfoldK(k) {
+  if (!unf) return;
+  k = Math.min(1, Math.max(0, k));
+  unf.k = k;
+  const poses = unf.net.poses(k);
+  const closed = k < 0.001, flat = k > 0.999;
+  unf.faces.forEach((o, i) => {
+    o.fg.matrix.set(...poses[i]);
+    o.fg.matrixWorldNeedsUpdate = true;
+    o.dups.forEach(l => { l.visible = !closed; });
+    o.area.visible = flat;
+  });
+  const used = {};
+  for (const g of UNFOLD.netLabels(unf.net, unf.shape, k)) {
+    const l = unf.labels[g.name][used[g.name] = (used[g.name] || 0)];
+    used[g.name]++;
+    l.position.set(...g.labelPos);
+    l.visible = true;
+  }
+  for (const [n, list] of Object.entries(unf.labels)) list.forEach((l, i) => { if (i >= (used[n] || 0)) l.visible = false; });
+  unfEl.k.value = k;
+  unfEl.pct.textContent = Math.round(k * 100) + '%';
+  const pi = unf.play ? 'pause' : k >= 1 ? 'rotate-ccw' : 'play';
+  if (unfEl.play.dataset.icon !== pi) { unfEl.play.dataset.icon = pi; unfEl.play.innerHTML = ICON.svg(pi); }
+  unfEl.play.setAttribute('aria-label', unf.play ? 'Dừng' : k >= 1 ? 'Gấp lại' : 'Phát');
+  if (flat && !unf.top) { unf.top = true; startTopView(); }
+  if (!flat) unf.top = false;
+  unfoldInfo(flat);
+  dirty();
+}
+
+function unfoldInfo(flat) {
+  const { net, shape } = unf;
+  if (!flat) { unfEl.info.textContent = 'Kéo thanh trượt hoặc bấm Phát để trải hình ra mặt phẳng.'; return; }
+  const parts = net.faces.map((f, i) => '<b>(' + CONSTRUCT.planeName(f, shape) + ')</b> = ' + fmtArea(net.areas[i]));
+  unfEl.info.innerHTML = parts.join(' · ') + '<br><b>S<sub>xq</sub></b> = ' + fmtArea(net.lateral) +
+    ' · <b>S<sub>tp</sub></b> = ' + fmtArea(net.total) + ' (đơn vị diện tích)';
+}
+
+// Khi trải phẳng hoàn toàn: camera xoay mượt sang nhìn thẳng từ trên xuống (khung giữ như đã co từ đầu)
+function startTopView() {
+  reframe = null;
+  unf.cam = {
+    t: 0, from: camera.position.clone().sub(controls.target).normalize(),
+    to: new THREE.Vector3(0, 1, 0.001).normalize(),
+    fromTarget: controls.target.clone(), toTarget: unf.sphere.center.clone(),
+    fromZoom: camera.zoom, toZoom: fitZoom(),
+  };
+}
+
+function unfoldFrame(dt) {
+  if (!unf) return;
+  if (unf.play) {
+    const k = unf.k + unf.play * dt / UNF_MS;
+    if (k <= 0 || k >= 1) unf.play = 0;
+    setUnfoldK(k);
+  }
+  const c = unf.cam;
+  if (c) {
+    c.t = Math.min(1, c.t + dt / 800);
+    const e = 1 - Math.pow(1 - c.t, 3);
+    controls.target.lerpVectors(c.fromTarget, c.toTarget, e);
+    camera.position.copy(c.from).lerp(c.to, e).setLength(12).add(controls.target);
+    camera.zoom = c.fromZoom + (c.toZoom - c.fromZoom) * e;
+    camera.updateProjectionMatrix();
+    if (c.t >= 1) unf.cam = null;
+  }
+}
+controls.addEventListener('start', () => { if (unf) unf.cam = null; });   // chạm vào hình là trả điều khiển ngay
+
+function exitUnfold() {
+  if (!unf) return;
+  disposeGroup(unf.root);
+  unf.hidden.forEach(g => setVis(g, true));
+  document.body.classList.remove('unfolding');
+  unf = null;
+  tools.setVisible(true);
+  fitView(currentShape, true);
+  openSheet('view');
+}
+
+document.getElementById('btn-unfold').addEventListener('click', enterUnfold);
+document.getElementById('unf-close').addEventListener('click', exitUnfold);
+unfEl.k.addEventListener('input', () => { if (unf) { unf.play = 0; setUnfoldK(parseFloat(unfEl.k.value)); } });
+unfEl.play.addEventListener('click', () => {
+  if (!unf) return;
+  if (unf.play) unf.play = 0;
+  else unf.play = unf.k >= 1 ? -1 : 1;
+  setUnfoldK(unf.k);
+});
+
+// ------------------------------------------------------------------
+// 4h. THÀNH BƯỚC (lesson.js): dựng lại hình từng bước như thầy vẽ bảng. Bước dựng: tools chỉ hiện các
+//     bước tới bước đang xem (bước sau ẩn), bước đang xem sáng lên. Thiết diện: từng giao điểm rồi nối.
+// ------------------------------------------------------------------
+const LESSON = window.SABCD.lesson;
+let play = null;   // { frames, secs, i, group, hidden }
+const playEl = Object.fromEntries(['count', 'text', 'first', 'prev', 'next', 'last']
+  .map(k => [k, document.getElementById('play-' + k)]));
+// Nét đang dựng ở bước hiện tại: vàng, vẫn vẽ hai lần (nét khuất thành nét đứt)
+const playHi = new LineMaterial({ color: 0xffe066, linewidth: 3.2 });
+const playHiHidden = new LineMaterial({ color: 0xffe066, linewidth: 2, dashed: true, dashSize: 0.14, gapSize: 0.1 });
+playHiHidden.depthFunc = THREE.GreaterDepth;
+playHiHidden.depthWrite = false;
+
+function enterPlay() {
+  if (play || unf) return;
+  setBuilding(false);
+  openSheet(null);
+  const secs = sections.map((sec, i) => ({ res: sectionResults[i], picks: sec.picks, color: sec.color, index: i }))
+    .filter(q => !sections[q.index].hidden && q.res);
+  const frames = LESSON.script(currentShape, tools.steps(), tools.result(), secs, tools.names().concat(sectionLabels));
+  const hidden = sectionGroups.slice();
+  hidden.forEach(g => setVis(g, false));
+  play = { frames, secs, i: 0, group: null, hidden, known: [] };
+  document.body.classList.add('playing');
+  showFrame(0);
+}
+
+// Bước tiến có điểm mới (giao điểm, điểm phụ như E) rơi ra ngoài màn: căn khung mượt cho thấy nó
+function keepFrameInView(f) {
+  const V = window.SABCD.view, v = new THREE.Vector3();
+  const cur = tools.points();
+  const secPts = f.sec ? f.sec.frames.slice(0, f.sec.upto + 1).flatMap(fr => fr.points.map(p => p.pos)) : [];
+  const fresh = V.freshPoints(play.known, cur).concat(f.sec ? f.sec.frames[f.sec.upto].points.map(p => p.pos) : []);
+  play.known = cur;
+  const ndc = fresh.map(p => { v.set(...p).project(camera); return [v.x, v.y]; });
+  if (!V.shouldReframe(ndc, false)) return;
+  const pts = Object.values(currentShape.vertices).concat(cur, secPts).map(p => new THREE.Vector3(...p));
+  const sphere = new THREE.Box3().setFromPoints(pts).getBoundingSphere(new THREE.Sphere());
+  fitRadius = sphere.radius;
+  panCenter.copy(sphere.center);
+  reframe = {
+    tween: V.reframeTween({ target: controls.target.toArray(), zoom: camera.zoom },
+      { target: sphere.center.toArray(), zoom: Math.min(camera.zoom, fitZoom()) }, camMs(350)),
+    offset: camera.position.clone().sub(controls.target),
+  };
+}
+
+function showFrame(i) {
+  if (!play) return;
+  const { frames, secs } = play, n = frames.length;
+  i = Math.max(0, Math.min(n - 1, i));
+  const f = frames[i], forward = i > play.i;
+  play.i = i;
+  // Hoạt ảnh chỉ khi tiến (lùi / về đầu thì hiện ngay): bước dựng mới, nét kẻ rồi điểm mới, thiết diện khép kín
+  FX.finishAll();
+  if (forward && f.hi) { const st = tools.steps().find(s => s.id === f.hi); if (st) FX.start('st:' + f.hi, st.type === 'line' ? 'line' : st.type === 'meet' ? 'meet' : st.type === 'plane' ? 'plane' : 'point'); }
+  tools.setLimit(f.limit, f.hi);
+  if (forward) keepFrameInView(f);
+  else play.known = tools.points();   // lùi lại: không đổi khung
+  if (play.group) disposeGroup(play.group);
+  const g = new THREE.Group();
+  const at = f.sec ? secs.findIndex(q => q.index === f.sec.index) : -1;
+  secs.forEach((q, k) => {
+    if (k < at) { g.add(buildSection(q.res, q.color)); return; }   // thiết diện đã dựng xong
+    if (k > at) return;
+    const sf = f.sec.frames, upto = f.sec.upto;
+    if (sf[upto].final) {
+      if (forward) FX.start('play:sec', 'section');
+      g.add(buildSection(q.res, q.color, 'play:sec'));
+      return;
+    }
+    const m = secMats[q.color], css = SEC_CSS[q.color], old = [], cur = [];
+    // bước có nét kẻ mới: nét chạy trước, điểm mới (vd Q) hiện ra sau khi nét chạy xong
+    if (forward && upto > 0) {
+      const lines = sf[upto].lines.length;
+      if (lines) FX.start('play:line', 'line');
+      FX.start('play:pt', 'point', { delay: lines ? FX.duration('line', FX.mode()) : 0 });
+    }
+    sf.slice(0, upto + 1).forEach((fr, j) => {
+      for (const [a, b] of fr.lines) (j === upto ? cur : old).push([a, b]);
+      for (const p of fr.points) {
+        const d = pointLabel(p.pos, p.name, j === upto && j > 0 ? 'sel' : p.aux ? 'new' : 'in');
+        d.element.style.setProperty('--sec', css);
+        g.add(j === upto ? FX.tag(d, 'play:pt', 'pop') : d);
+      }
+    });
+    if (old.length) { const o = old.flatMap(([a, b]) => [...a, ...b]); g.add(buildLines(o, m.visible, 5), buildLines(o, m.hidden, 6)); }
+    // nét đang kẻ: mỗi đoạn một lưới riêng để nét chạy dọc theo nó
+    for (const [a, b] of cur) for (const l of [buildLines([...a, ...b], playHi, 7), buildLines([...a, ...b], playHiHidden, 7)]) g.add(FX.tag(l, 'play:line', 'draw', { a, b }));
+  });
+  scene.add(g);
+  play.group = g;
+  playEl.count.textContent = 'Bước ' + (i + 1) + '/' + n;
+  playEl.text.textContent = f.text;
+  playEl.first.disabled = playEl.prev.disabled = i === 0;
+  playEl.next.disabled = playEl.last.disabled = i === n - 1;
+  dirty();
+}
+
+function exitPlay() {
+  if (!play) return;
+  if (present) exitPresent();
+  disposeGroup(play.group);
+  play.hidden.forEach(g => setVis(g, true));
+  play = null;
+  document.body.classList.remove('playing');
+  tools.setLimit(null);
+  openSheet('view');
+}
+
+document.getElementById('btn-play').addEventListener('click', enterPlay);
+document.getElementById('play-close').addEventListener('click', exitPlay);
+playEl.first.addEventListener('click', () => showFrame(0));
+playEl.prev.addEventListener('click', () => showFrame(play.i - 1));
+playEl.next.addEventListener('click', () => showFrame(play.i + 1));
+playEl.last.addEventListener('click', () => showFrame(Infinity));
+// Bàn phím (máy tính / bút trình chiếu): ← → lùi tiến, Home / End về đầu / tới cuối
+document.addEventListener('keydown', e => {
+  if (!play) return;
+  const go = { ArrowRight: 1, PageDown: 1, ArrowLeft: -1, PageUp: -1 }[e.key];
+  if (go) showFrame(play.i + go);
+  else if (e.key === 'Home') showFrame(0);
+  else if (e.key === 'End') showFrame(Infinity);
+  else if (e.key === 'Escape') (present ? exitPresent : exitPlay)();
+  else return;
+  e.preventDefault();
+});
+
+// ------------------------------------------------------------------
+// 4i. TỰ QUAY: camera về độ nghiêng chọn ở thanh Độ nghiêng (10°–80°, mặc định 45°) rồi quay tròn quanh trục đứng qua tâm hình, lặp mãi;
+//     kéo thanh khi đang quay thì góc nhìn đuổi theo mượt, vẫn quay. Tốc độ Chậm / Vừa / Nhanh (20 / 10 / 5 giây một vòng).
+//     Chạm / vuốt vào hình là dừng ngay tại góc đang quay (không giật); bấm lại thì quay tiếp.
+//     Chỉ xoay camera (tính bằng thời gian thật, không dựng lại hình học); nét khuất và nhãn
+//     do vòng vẽ bình thường cập nhật mỗi khung.
+// ------------------------------------------------------------------
+const spinUI = { go: document.getElementById('spin-go'), tilt: document.getElementById('spin-tilt'), tiltVal: document.getElementById('spin-tilt-val'),
+  speeds: { slow: document.getElementById('spin-slow'), mid: document.getElementById('spin-mid'), fast: document.getElementById('spin-fast') } };
+let spin = null;            // { enter: tween vào độ nghiêng đã chọn | null }
+let spinSpeed = 'mid';
+let spinTilt = window.SABCD.view.tiltRad(45);   // thanh Độ nghiêng (10°–80°), chỉnh được cả khi đang quay
+
+function startSpin() {
+  if (spin || unf) return;
+  reframe = null;
+  controls.enableDamping = false;   // xả hết quán tính của cú vuốt trước, không trôi tiếp
+  controls.update();
+  controls.enableDamping = true;
+  spin = {
+    enter: window.SABCD.view.spinEnter({ offset: camera.position.clone().sub(controls.target).toArray(),
+      target: controls.target.toArray() }, panCenter.toArray(), camMs(600), spinTilt),
+  };
+  syncSpinUI();
+}
+function stopSpin() {
+  if (!spin) return;
+  spin = null;
+  syncSpinUI();
+  dirty();
+}
+function syncSpinUI() {
+  for (const b of [spinUI.go, document.getElementById('play-spin')]) { b.classList.toggle('on', !!spin); b.setAttribute('aria-pressed', !!spin); }
+  for (const [k, b] of Object.entries(spinUI.speeds)) { b.classList.toggle('on', spinSpeed === k); b.setAttribute('aria-pressed', spinSpeed === k); }
+}
+function spinFrame(dt) {
+  if (!spin) return;
+  const W = window.SABCD.view;
+  let off = camera.position.clone().sub(controls.target).toArray();
+  if (spin.enter) {
+    const r = spin.enter.step(dt);
+    off = r.offset;
+    controls.target.set(...r.target);
+    if (r.done) spin.enter = null;
+  } else {
+    off = W.approachElevation(W.spinStep(off, dt, W.SPIN_MS[spinSpeed]), spinTilt, dt);
+  }
+  camera.position.copy(controls.target).add(new THREE.Vector3(...off));
+}
+// Người dùng chạm vào hình: dừng ngay tại góc đang quay
+controls.addEventListener('start', stopSpin);
+spinUI.go.addEventListener('click', () => (spin ? stopSpin() : startSpin()));
+for (const [k, b] of Object.entries(spinUI.speeds)) b.addEventListener('click', () => { spinSpeed = k; syncSpinUI(); });
+// Độ nghiêng: đang quay thì góc nhìn đuổi theo mượt (spinFrame), không dừng quay
+spinUI.tilt.addEventListener('input', () => {
+  spinTilt = window.SABCD.view.tiltRad(spinUI.tilt.value);
+  spinUI.tiltVal.textContent = spinUI.tilt.value + '°';
+});
+
+// ------------------------------------------------------------------
+// 4j. THÀNH BƯỚC › TOÀN MÀN HÌNH (trước là mục Trình chiếu riêng): ẩn bớt giao diện, chữ mô tả bước to,
+//     toàn màn hình nếu trình duyệt cho. Tự quay vẫn bấm được (nút trong trình phát); ← → / Esc dùng được trên
+//     máy tính; Esc / Thoát về lại trình phát Thành bước bình thường.
+// ------------------------------------------------------------------
+let present = false;
+function enterPresent() {
+  if (present) return;
+  if (unf) exitUnfold();
+  stopSpin();
+  if (!play) enterPlay();
+  present = true;
+  document.body.classList.add('present');
+  try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch { /* không có toàn màn hình thì thôi */ }
+}
+function exitPresent() {
+  if (!present) return;
+  present = false;
+  document.body.classList.remove('present');
+  try { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); } catch { /* bỏ qua */ }
+}
+document.getElementById('play-present').addEventListener('click', enterPresent);
+document.getElementById('play-spin').addEventListener('click', () => (spin ? stopSpin() : startSpin()));
+document.getElementById('present-exit').addEventListener('click', exitPresent);
+document.addEventListener('fullscreenchange', () => { if (present && !document.fullscreenElement) exitPresent(); });
+
+// ------------------------------------------------------------------
+// 4k. TRẠNG THÁI (state.js): chụp lại toàn bộ những gì đang xem / dựng lại từ dữ liệu đã lưu.
+//     Dùng cho Vở bài (saves.js), Mẫu, Chia sẻ. Không lưu toạ độ: chỉ hình + cách dựng + góc nhìn.
+// ------------------------------------------------------------------
+const STATE = window.SABCD.state;
+// Góc nhìn: span = nửa cạnh ngắn khung nhìn (đơn vị hình), nên mở trên màn cỡ khác vẫn thấy y như vậy
+const viewNow = () => ({ dir: camera.position.clone().sub(controls.target).normalize().toArray(),
+  target: controls.target.toArray(), span: Math.min(frameFull, frameWide) / camera.zoom });
+function setView(v) {
+  reframe = null;
+  if (unf) unf.cam = null;
+  controls.enableDamping = false;   // xả quán tính còn lại, không trôi khỏi góc vừa đặt
+  controls.update();
+  controls.enableDamping = true;
+  controls.target.set(...v.target);
+  camera.position.copy(controls.target).add(new THREE.Vector3(...v.dir).setLength(12));
+  camera.zoom = THREE.MathUtils.clamp(Math.min(frameFull, frameWide) / v.span, controls.minZoom, controls.maxZoom);
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+
+function snapshot() {
+  return {
+    shape: typeof currentKey === 'string' ? currentKey : currentShape.spec,
+    steps: tools.steps(), names: tools.alias(), sections: structuredClone(sections), active: activeSec,
+    text: sampleText.textContent, view: viewNow(),
+    play: play ? play.i : null, unfold: unf ? unf.k : null,
+    plane2d: plane2d.state(), mode: plane2d.isOpen() ? '2d' : null,
+  };
+}
+
+// Dựng lại từ state (đã qua STATE.deserialize). build: bật thanh công cụ; tryOf: thử phép giao để hiện câu báo
+function applyState(st, { build = false, tryOf = null } = {}) {
+  FX.finishAll();   // mở vở / mẫu / link: hiện ngay, không chạy hoạt ảnh
+  if (play) exitPlay();
+  if (unf) exitUnfold();
+  stopSpin();
+  showShape(typeof st.shape === 'string' ? st.shape : BUILDER.buildFromSpec(st.shape), null, st.steps, st.names);
+  sections = structuredClone(st.sections);
+  activeSec = Math.min(st.active, Math.max(0, sections.length - 1));
+  syncRows();
+  updateSection();
+  sampleText.textContent = st.text;
+  setBuilding(build);
+  if (tryOf) tools.tryIntersect(tryOf);
+  if (st.unfold != null) {
+    enterUnfold();
+    setUnfoldK(st.unfold);
+    if (unf) { unf.cam = null; unf.top = unf.k > 0.999; }
+  } else if (st.play != null) {
+    enterPlay();
+    showFrame(st.play);
+  }
+  if (st.view) setView(st.view);
+  // Hình phẳng 2D đi kèm vở (v3)
+  plane2d.load(st.plane2d);
+  if (st.mode === '2d') plane2d.open(); else plane2d.close();
+  code?.reset();
+}
+
+// Dựng lại theo Mã đề (.sabcd): cùng hình thì chỉ thay các bước dựng (hoàn tác được), khác hình thì mở như vở
+function rebuildFrom(st0) {
+  let st;
+  try { st = STATE.deserialize(STATE.serialize(st0)); } catch (e) { tools.say('Mã đề không dựng được: ' + e.message, true); return false; }
+  const cur = snapshot();
+  if (JSON.stringify(STATE.serialize({ shape: cur.shape }).shape) === JSON.stringify(st.shape)) {
+    sections = structuredClone(st.sections);
+    activeSec = Math.min(activeSec, Math.max(0, sections.length - 1));
+    sampleText.textContent = st.text;
+    tools.replace(st.steps, st.names);   // ghi lịch sử + onChange: vẽ lại thiết diện, lưu vở
+    syncRows();
+    updateSection();
+  } else {
+    applyState({ ...st, view: null, play: null, unfold: null, plane2d: cur.plane2d, mode: null }, { build: document.body.classList.contains('building') });
+  }
+  dirty();
+  return true;
+}
+
+// Ảnh nhỏ xem trước: cắt giữa khung theo tỉ lệ 4:3, JPEG 160×120 (chỉ nét vẽ, không có chữ nhãn)
+const thumbCv = Object.assign(document.createElement('canvas'), { width: 160, height: 120 });
+function thumbnail() {
+  try {
+    if (plane2d.isOpen()) return plane2d.thumbnail(thumbCv);   // đang ở hình phẳng 2D: ảnh nhỏ là hình 2D
+    const src = renderer.domElement, W = src.width, H = src.height;
+    if (!W || !H) return '';
+    const g = thumbCv.getContext('2d');
+    g.fillStyle = paper ? '#fbf8f1' : '#0f1420';   // Giấy vở: canvas trong suốt, lót nền trước khi chép
+    g.fillRect(0, 0, 160, 120);
+    let sw = W, sh = W * 0.75;
+    if (sh > H) { sh = H; sw = H / 0.75; }
+    renderer.render(scene, camera);   // vẽ lại ngay trước khi chép (bộ đệm WebGL không giữ sau khung hình)
+    thumbCv.getContext('2d').drawImage(src, (W - sw) / 2, (H - sh) / 2, sw, sh, 0, 0, 160, 120);
+    return thumbCv.toDataURL('image/jpeg', 0.6);
+  } catch { return ''; }
+}
+
+// Đang chạm / kéo trên hình, đang căn khung hay trải hình tự chạy: hoãn tự lưu
+const stageDown = new Set();
+renderer.domElement.addEventListener('pointerdown', e => stageDown.add(e.pointerId));
+// Chạm vào hình trong lúc hoạt ảnh: tua nhanh đến cuối (mọi thứ hiện ngay)
+renderer.domElement.addEventListener('pointerdown', () => FX.finishAll(), true);
+for (const t of ['pointerup', 'pointercancel']) window.addEventListener(t, e => stageDown.delete(e.pointerId));
+const busy = () => stageDown.size > 0 || !!reframe || !!goodAnim || !!(unf && (unf.play || unf.cam)) || plane2d.busy();
+controls.addEventListener('end', dirty);   // xoay / zoom xong: lưu góc nhìn
+
+// ------------------------------------------------------------------
+// 5. NÚT BẤM
+// ------------------------------------------------------------------
+document.querySelectorAll('nav button[data-shape]').forEach(b =>
+  b.addEventListener('click', () => saves.replaceWith(STATE.deserialize({ v: 1, shape: b.dataset.shape }))));
+document.getElementById('btn-reset').addEventListener('click', () => goodView());
+
+// ------------------------------------------------------------------
+// GÓC ĐẸP: chọn hướng nhìn (quanh góc SGK) sao cho đỉnh, điểm tự dựng, giao điểm, điểm thiết diện không chồng
+// nhau và không đè lên cạnh / đường dựng / giao tuyến / viền thiết diện đang hiện (builder.bestView); khung
+// vừa đủ mọi thứ đó. Chuyển mượt ~400 ms; dừng quán tính trước; chạm vào hình là huỷ.
+// ------------------------------------------------------------------
+const GOOD_MS = 400;
+let goodAnim = null;
+function goodView() {
+  if (unf) { fitView(currentShape, true); return; }   // đang trải hình: về góc nhìn của hình như cũ
+  const X2 = window.SABCD.export2d;
+  stopSpin();
+  reframe = null;
+  controls.enableDamping = false;   // xả quán tính của cú vuốt trước
+  controls.update();
+  controls.enableDamping = true;
+  const secs = sectionResults.filter((r, i) => sections[i] && !sections[i].hidden && r && r.status === 'ok');
+  const scene = X2.sceneOf(currentShape, { steps: tools.steps(), hiddenFaces: tools.hiddenFaces(), sections: secs });
+  const extra = X2.viewExtras(scene);
+  const dir = new THREE.Vector3(...BUILDER.bestView(currentShape, HOME_DIR.toArray(), extra)).normalize();
+  // khung: đỉnh + điểm dựng (bỏ điểm chạy quá xa) + điểm thiết diện
+  const pts = framePoints(currentShape).concat(secs.flatMap(r => r.points.map(p => new THREE.Vector3(...p.pos))));
+  const sphere = new THREE.Box3().setFromPoints(pts).getBoundingSphere(new THREE.Sphere());
+  fitRadius = sphere.radius;
+  panCenter.copy(sphere.center);
+  goodAnim = {
+    t0: performance.now(),
+    from: { dir: camera.position.clone().sub(controls.target).normalize(), target: controls.target.clone(), zoom: camera.zoom },
+    to: { dir, target: sphere.center.clone(), zoom: fitZoom() },
+  };
+}
+const qa = new THREE.Quaternion();
+function stepGoodView(now) {
+  if (!goodAnim) return;
+  const g = goodAnim, u = GOOD_MS > 0 && camMs(GOOD_MS) > 0 ? Math.min(1, (now - g.t0) / GOOD_MS) : 1, e = u < 0.5 ? 4 * u * u * u : 1 - (-2 * u + 2) ** 3 / 2;
+  qa.setFromUnitVectors(g.from.dir, g.to.dir);
+  const dir = g.from.dir.clone().applyQuaternion(new THREE.Quaternion().slerp(qa, e));
+  controls.target.lerpVectors(g.from.target, g.to.target, e);
+  camera.position.copy(controls.target).addScaledVector(dir, 12);
+  camera.zoom = g.from.zoom + (g.to.zoom - g.from.zoom) * e;
+  camera.updateProjectionMatrix();
+  if (u >= 1) { goodAnim = null; dirty(); }
+}
+controls.addEventListener('start', () => { goodAnim = null; });   // chạm vào hình: huỷ, trả điều khiển ngay
+
+// ------------------------------------------------------------------
+// 6. KHUNG NHÌN: căn theo kích thước hình; co giãn theo màn hình
+// ------------------------------------------------------------------
+const HOME_DIR = new THREE.Vector3(5.5, 3, 8.5); // hướng nhìn kiểu SGK (như GĐ1)
+let homeDir = HOME_DIR.clone();                  // góc nhìn tốt nhất cho hình đang xem
+let fitRadius = 2.6;
+let frameFull = 3.4, frameHalf = 3.4, frameWide = 3.4;            // nửa chiều cao khung nhìn (zoom 1); frameHalf: phần dưới hàng nút trên cùng
+const panCenter = new THREE.Vector3();          // tâm hình, để giới hạn vùng dịch
+
+function fitZoomFor(f) {
+  return THREE.MathUtils.clamp(Math.min(f.frameHalf, f.frameWide) / (fitRadius * 1.2), controls.minZoom, controls.maxZoom);
+}
+function fitZoom() { return fitZoomFor({ frameHalf, frameWide }); }   // theo khung ở trạng thái cuối của bảng
+
+// Đưa hình vào giữa và vừa khung. home = về góc nhìn tốt nhất của hình (lúc mở
+// hình và nút Góc nhìn), còn lại giữ hướng người dùng đang xoay.
+// Điểm để căn khung: đỉnh + điểm dựng, bỏ điểm chạy quá xa hình (> 4 bán kính, vd giao điểm khi kéo điểm
+// tự do gần song song) để hình không bị đẩy ra mép
+function nearFigure(shape, p) {
+  const { c, R } = CONSTRUCT.bounds(shape);
+  return Math.hypot(p[0] - c[0], p[1] - c[1], p[2] - c[2]) <= 4 * R;
+}
+function framePoints(shape) {
+  return Object.values(shape.vertices).concat(tools.points().filter(p => nearFigure(shape, p))).map(v => new THREE.Vector3(...v));
+}
+function fitView(shape, home = false) {
+  const pts = framePoints(shape);
+  const sphere = new THREE.Box3().setFromPoints(pts).getBoundingSphere(new THREE.Sphere());
+  fitRadius = sphere.radius;
+  panCenter.copy(sphere.center);
+  reframe = null;
+  if (home) {
+    // Dừng quán tính của cú vuốt trước: tắt damping một nhịp để phần xoay còn
+    // lại được xả hết ngay (rồi bị ghi đè bên dưới), không trôi tiếp sau khi về góc.
+    controls.enableDamping = false;
+    controls.update();
+    controls.enableDamping = true;
+  }
+  const dir = home ? homeDir.clone() : camera.position.clone().sub(controls.target);
+  controls.target.copy(sphere.center);
+  camera.position.copy(sphere.center).add(dir.setLength(12));
+  camera.zoom = fitZoom();
+  camera.updateProjectionMatrix();
+  controls.update();
+  dirty();
+}
+
+const nav = document.querySelector('nav');
+// Điện thoại cầm ngang: bảng là cột bên phải, hình nằm bên trái cột. Đọc từ CSS (--land) chứ không
+// dùng matchMedia: lúc đang xoay máy, matchMedia có thể chưa kịp đổi trong khi bố cục đã đổi.
+const isLand = () => getComputedStyle(nav).getPropertyValue('--land').trim() === '1';
+const stripEl = document.getElementById('strip');
+// ---- Khung hình KHÔNG đổi cỡ khi mở / đóng bảng ----
+// Canvas luôn lấp cả màn hình trừ thanh tab (và cột tab khi cầm ngang); bảng trượt, dòng hướng dẫn trượt ĐÈ lên.
+// Phần canvas bị che (occ.b px phía dưới, occ.r px bên phải) được nội suy cùng thời lượng + easing với bảng, và
+// camera dời / zoom theo (V.viewFrame) để hình luôn nằm giữa phần còn trống: không có cú nhảy, không đổi cỡ renderer.
+const MO = window.SABCD.motion, MOTION = MO, VIEW = window.SABCD.view;
+const tabsEl = document.getElementById('tabs');
+const occ = { b: 0, r: 0, to: { b: 0, r: 0 }, from: { b: 0, r: 0 }, t0: 0, ms: 0, fn: MO.ease.out, run: false };
+let occHint = null;        // 'open' | 'close' | 'swap': tên chuyển động đang diễn ra (chọn thời lượng + easing)
+let tabsH = 0, topInset = 0, curFrame = null, targetFrame = null;
+const camMs = d => (FX.mode() === 'none' ? 0 : d);   // giảm chuyển động: camera chuyển ngay
+const hist = document.getElementById('hist');
+// Số px canvas bị che khi bảng ở trạng thái cuối (đo từ bố cục thật)
+function occTarget() {
+  const land = isLand();
+  const cs = getComputedStyle(nav);
+  const baseR = land ? 64 + (parseFloat(cs.paddingRight) || 0) : 0;
+  const side = land ? nav.offsetWidth : 0;
+  // bảng đang trượt xuống (closing) coi như đã đóng: hình hạ xuống cùng lúc với bảng
+  const lowAll = land ? (getComputedStyle(stripEl).position === 'fixed' ? stripEl.offsetHeight : 0)
+    : nav.offsetHeight - (sheet.classList.contains('closing') ? sheet.offsetHeight : 0);
+  return { b: Math.max(0, lowAll - tabsH), r: Math.max(0, side - baseR), side, low: lowAll, baseR };
+}
+// Đặt vị trí các thứ bám theo bảng (theo bảng ở trạng thái cuối) và đo lại phần chừa cho hàng nút trên cùng
+function place() {
+  const land = isLand();
+  tabsH = tabsEl.offsetHeight || tabsH;
+  const T = occTarget();
+  stage.style.bottom = (land ? 0 : tabsH) + 'px';
+  stage.style.right = T.baseR + 'px';
+  document.getElementById('top').style.right = T.side + 'px';
+  document.getElementById('present-exit').style.right = T.side + 10 + 'px';
+  hist.style.right = T.side + 10 + 'px';
+  hist.style.bottom = (land ? T.low : tabsH) + 10 + 'px';
+  // Bánh xe độ cao: mép phải vùng hình, từ dưới hàng nút trên cùng tới trên nút Hoàn tác
+  const wheel = document.getElementById('wheel');
+  wheel.style.right = T.side + 8 + 'px';
+  const barBottom = bookBtn.getBoundingClientRect().bottom;   // đáy hàng nút tròn (không tính viên thuốc đang hiện hay không)
+  const top = Math.max(76, barBottom + 8);
+  wheel.style.top = top + 'px';
+  const room = innerHeight - T.low - top - 70, compact = room < 128 + 90;
+  wheel.classList.toggle('compact', compact);
+  wheel.style.setProperty('--wh', Math.max(40, Math.min(240, room - 128)) + 'px');
+  topInset = Math.max(0, barBottom - stage.getBoundingClientRect().top);
+  return T;
+}
+let lastW = 0, lastH = 0;
+// Áp occ.b / occ.r hiện tại lên camera (mỗi khung hình khi bảng đang trượt); chỉ đổi cỡ renderer khi khung thật sự đổi cỡ
+function layout() {
+  const land = isLand();
+  const w = stage.clientWidth, h = stage.clientHeight;
+  if (!w || !h) return;   // khung đang cỡ 0 (giữa lúc đổi bố cục): đợi lần đo sau
+  const inset = Math.min(h * 0.2, topInset);
+  const rel = curFrame ? camera.zoom / fitZoomFor(curFrame) : 1;   // giữ mức zoom tay của người dùng
+  const f = VIEW.viewFrame(w, h, inset, occ.b, occ.r);
+  curFrame = f;
+  const tf = VIEW.viewFrame(w, h, inset, occ.to.b, occ.to.r);
+  camera.left = f.left; camera.right = f.right; camera.top = f.top; camera.bottom = f.bottom;
+  frameFull = tf.frameFull; frameHalf = tf.frameHalf; frameWide = tf.frameWide;   // căn khung theo đích, không theo giữa chừng
+  if (Number.isFinite(rel)) camera.zoom = THREE.MathUtils.clamp(rel * fitZoomFor(f), controls.minZoom, controls.maxZoom);
+  camera.updateProjectionMatrix();
+  // nút Hoàn tác / Làm lại trôi lên theo bảng (chỉ transform)
+  hist.style.transform = land ? '' : 'translateY(' + -occ.b + 'px)';
+  if (w !== lastW || h !== lastH) {
+    lastW = w; lastH = h;
+    renderer.setSize(w, h);
+    labelRenderer.setSize(w, h);
+    renderer.render(scene, camera);   // vẽ ngay: setSize xoá khung, không để lộ một khung trống
+    labelRenderer.render(scene, camera);
+  }
+}
+// Bảng đổi cỡ (mở / đóng / đổi tab / dòng hướng dẫn hiện): bắt đầu chuyển occ sang giá trị mới
+function syncOcc() {
+  if (sheet.classList.contains('vheight')) return;   // bảng đang đổi chiều cao: đích đã tính xong lúc bắt đầu
+  const T = place();
+  if (T.b === occ.to.b && T.r === occ.to.r) return;
+  occ.from = { b: occ.b, r: occ.r };
+  occ.to = { b: T.b, r: T.r };
+  const hint = occHint || 'swap';
+  occHint = null;
+  const ms = camMs(hint === 'open' ? MO.DUR.slow : MO.DUR.mid);
+  occ.fn = hint === 'open' ? MO.ease.spring : hint === 'close' ? MO.ease.in : MO.ease.out;
+  occ.ms = ms; occ.t0 = null; occ.run = ms > 0;   // đồng hồ bắt đầu ở khung vẽ đầu tiên (stepOcc), không ở lúc đo
+  if (!occ.run) { occ.b = T.b; occ.r = T.r; }
+  layout();
+}
+function stepOcc(now) {
+  if (!occ.run) return;
+  if (occ.t0 == null) occ.t0 = now;
+  const u = Math.min(1, Math.max(0, (now - occ.t0) / occ.ms)), k = occ.fn(u);
+  occ.b = occ.from.b + (occ.to.b - occ.from.b) * k;
+  occ.r = occ.from.r + (occ.to.r - occ.from.r) * k;
+  if (u >= 1) { occ.run = false; occ.b = occ.to.b; occ.r = occ.to.r; }
+  layout();
+}
+function resize() {   // đổi cỡ cửa sổ / xoay máy: không chuyển mượt
+  tabsH = tabsEl.offsetHeight || tabsH;
+  const T = place();
+  occ.run = false;
+  occ.b = occ.to.b = T.b; occ.r = occ.to.r = T.r;
+  layout();
+}
+window.addEventListener('resize', resize);
+{
+  const ro = new ResizeObserver(() => syncOcc());   // bảng trượt mở/đóng, dòng hướng dẫn hiện/ẩn
+  ro.observe(nav);
+  ro.observe(stripEl);
+}
+resize();
+
+// Làm nóng bảng: lần mở bảng đầu tiên từng bị một khung chậm (hình nhảy ~75 px) vì trình duyệt phải tính kiểu chữ,
+// icon, bố cục của nội dung bảng lần đầu. Khi app vừa tải xong: dựng lần lượt từng pane trong bảng ẩn (không chiếm
+// chỗ, không đổi khung hình), đo bố cục một lần, rồi trả bảng về như cũ.
+function warmSheet() {
+  if (openPane || sheet.classList.contains('open') || document.body.classList.contains('wizard')) return;
+  sheet.classList.add('warm');
+  for (const p of document.querySelectorAll('.pane')) { applyPane(p.dataset.pane); void sheet.offsetHeight; }
+  applyPane(null);
+  sheet.classList.remove('warm');
+  place();
+}
+(window.requestIdleCallback || (f => setTimeout(f, 300)))(warmSheet, { timeout: 1500 });
+
+showShape('quad');
+
+// Cho trang kiểm thử tự động đọc trạng thái camera
+window.SABCD.app = { present: { enter: enterPresent, exit: exitPresent, on: () => present }, spin: { start: startSpin, stop: stopSpin, state: () => spin, setSpeed: v => { spinSpeed = v; syncSpinUI(); }, tilt: () => spinTilt }, play: { enter: enterPlay, exit: exitPlay, go: showFrame, state: () => play }, unfold: { enter: enterUnfold, exit: exitUnfold, setK: setUnfoldK, state: () => unf }, camera, controls, homeDir: () => homeDir.clone(), tools, sections: () => structuredClone(sections) };
+
+// Dịch hình có giới hạn: tâm nhìn không rời tâm hình quá fitRadius, hình không trôi mất khỏi màn
+function clampPan() {
+  const fix = window.SABCD.view.panCorrection(controls.target.toArray(), panCenter.toArray(), fitRadius);
+  if (fix[0] || fix[1] || fix[2]) {
+    const d = new THREE.Vector3(...fix);
+    controls.target.add(d);
+    camera.position.add(d);
+  }
+}
+
+// Nét đứt đo bằng đơn vị thế giới: phóng to thì đoạn đứt phải ngắn lại để nét vẫn mảnh, đều như ở mức zoom 1
+// (độ dày nét và nhãn tính bằng pixel nên tự giữ nguyên).
+const dashSeen = new Set();
+function scaleDashes() {
+  const k = 1 / Math.max(1, camera.zoom);
+  scene.traverse(o => {
+    const m = o.material;
+    if (!m || !m.isLineMaterial || !m.dashed || dashSeen.has(m) && m.userData.k === k) return;
+    dashSeen.add(m);
+    m.userData.dash ??= [m.dashSize, m.gapSize];
+    m.userData.k = k;
+    m.dashSize = m.userData.dash[0] * k;
+    m.gapSize = m.userData.dash[1] * k;
+  });
+}
+
+let lastT = performance.now();
+renderer.setAnimationLoop(now => {
+  if (document.body.classList.contains('plane2d')) { lastT = now; return; }   // đang ở hình phẳng 2D: 3D nghỉ cho đỡ tốn pin
+  stepOcc(now);     // bảng trượt: khung nhìn dời cùng nhịp
+  stepReframe(Math.min(now - lastT, 50));
+  stepGoodView(now);
+  unfoldFrame(Math.min(now - lastT, 50));
+  spinFrame(Math.min(now - lastT, 50));
+  lastT = now;
+  controls.update();
+  clampPan();
+  scaleDashes();
+  tools.frame();   // đường xuyên tấm mặt phẳng: phần sau tấm vẽ nhạt theo góc nhìn
+  FX.frame(now);   // hoạt ảnh: chỉ đổi transform / độ trong / độ dài nét
+  renderer.render(scene, camera);
+  labelRenderer.render(scene, camera);
+});
+
+// ------------------------------------------------------------------
+// XUẤT HÌNH KIỂU SGK (export2d.js tính nét khuất, exportui.js xem trước + tải về)
+// ------------------------------------------------------------------
+// Hình đang xem đúng góc camera hiện tại: trục ngang / đứng / hướng nhìn lấy từ ma trận camera
+function exportSource() {
+  const X2 = window.SABCD.export2d, e = camera.matrixWorld.elements;
+  const view = { right: [e[0], e[1], e[2]], up: [e[4], e[5], e[6]], w: [e[8], e[9], e[10]] };
+  // Đang trải hình: xuất đúng hình trải ở mức k đang xem (nhãn đỉnh đã gộp như trên màn hình)
+  if (unf) return { drawing: X2.build(X2.netSceneOf(currentShape, unf.net, unf.k), view), name: CONSTRUCT.nmText(currentShape.title) + ' (trải)', text: sampleText.textContent, steps: [] };
+  const secs = sectionResults.filter((_, i) => sections[i] && !sections[i].hidden);
+  const scene = X2.sceneOf(currentShape, { steps: tools.steps(), hiddenFaces: tools.hiddenFaces(), sections: secs });
+  // các bước dựng: đúng câu của Thành bước (hình, bước dựng, các bước tìm thiết diện)
+  const lsecs = sections.map((sec, i) => ({ res: sectionResults[i], picks: sec.picks, color: sec.color, index: i }))
+    .filter(q => !sections[q.index].hidden && q.res && q.res.status === 'ok');
+  let steps = [];
+  try { steps = LESSON.script(currentShape, tools.steps(), tools.result(), lsecs, tools.names().concat(sectionLabels)).map(f => f.text); } catch { /* bỏ phần chữ */ }
+  return { drawing: X2.build(scene, view), name: CONSTRUCT.nmText(currentShape.title), text: sampleText.textContent, steps };
+}
+const exporter = initExport({ source: () => (plane2d.isOpen() ? plane2d.source() : exportSource()) });
+// Hình phẳng 2D: màn riêng phủ lên trên; xuất hình dùng chung hộp Xuất hình
+const plane2d = initPlane2D({ onExit: () => { plane2d.close(); dirty(); }, onExport: () => exporter.open(), onChange: () => dirty() });
+document.getElementById('btn-2d').addEventListener('click', () => {
+  if (spin) stopSpin();
+  if (play) exitPlay();
+  if (unf) exitUnfold();
+  plane2d.open();
+  dirty();
+});
+window.SABCD.app.plane2d = plane2d;
+
+// Giấy vở: bật/tắt ở tab Khác; mở app thì theo lựa chọn lần trước (mặc định nền tối)
+function applyTheme(on) {
+  setPaper(on);
+  tools.setTheme(paper);
+  updateSection();   // nhãn / màu thiết diện theo chế độ mới (không đổi điểm chọn, góc nhìn)
+  if (plane2d.isOpen()) plane2d.redraw();
+}
+document.getElementById('btn-paper').addEventListener('click', () => applyTheme(!paper));
+try { if (localStorage.getItem(THEME_KEY) === 'paper') applyTheme(true); } catch { /* bộ nhớ bị chặn: nền tối */ }
+
+// Vở bài: vào lại vở dùng gần nhất, đúng trạng thái (lần đầu: hình đang xem thành Vở 1)
+saves = initSaves({
+  snapshot, apply: applyState, thumbnail, busy, say: (t, w) => tools.say(t, w),
+  pane: () => openPane, open: openSheet, title: () => currentShape.short || currentShape.title,
+});
+// không chờ: link chia sẻ được giải nén bất đồng bộ. Mở xong: lần đầu sau khi cập nhật, hình 2D bản cũ lưu
+// riêng trong máy được đưa vào vở đang mở (nếu vở chưa có hình 2D) rồi lưu ngay
+code = initCode({
+  snapshot, rebuild: rebuildFrom, replaceWith: (st, o) => saves.replaceWith(st, o), say: (t, w) => tools.say(t, w),
+  fileName: () => document.getElementById('nb-name').value || currentShape.short || currentShape.title,
+});
+// ------------------------------------------------------------------
+// BẢN RIÊNG có AI dựng hình từ đề: chỉ khi máy chủ có ai/rieng.json {"bat": true, "api": …} (bản công khai không có
+// file này, cũng không có ai/ui.js). Không có / tắt / lỗi → không hiện gì, không báo gì.
+// ------------------------------------------------------------------
+// <rieng-config>
+async function riengConfig(get) {
+  try {
+    const r = await get('ai/rieng.json', { cache: 'no-store' });
+    if (!r.ok) return null;
+    const c = await r.json();
+    return c && c.bat === true && typeof c.api === 'string' ? c : null;
+  } catch { return null; }
+}
+// </rieng-config>
+// Dựng từ mã .sabcd do AI viết: vở mới (vở đang có giữ nguyên; hết ô thì hỏi), chữ đề vào ghi chú, mở Mã đề
+async function buildFromAI(text, { de, from, note }) {
+  const r = window.SABCD.sabcd.parse(text);
+  if (!r.state || r.errors.some(e => e.kind !== 'check')) return false;
+  let st;
+  try { st = STATE.deserialize(STATE.serialize(r.state)); } catch (e) { tools.say('Mã AI viết không dựng được: ' + e.message, true); return false; }
+  const res = await saves.replaceWith(st, { name: 'Đề AI ' + new Date().toTimeString().slice(0, 5) });
+  if (!res.ok) return false;
+  const slot = saves.current();
+  if (slot != null && (note || de)) { saves.notebook.write(slot, { note: note || de }); saves.render('book'); }
+  code.put(text, from);
+  openSheet('code');
+  return true;
+}
+// Chỉ chạy khi bản riêng bật AI (bản công khai không tới đây): giao diện AI + vở đang mở { id, note, name }
+// (hội thoại AI lưu theo id vở ở khoá riêng 'sabcd.ai.<id>', không đụng định dạng vở)
+function riengStart(c, m) {
+  let store = null;
+  try { store = window.localStorage; store.getItem('sabcd.ai.'); } catch { store = null; }
+  const readVo = id => { const r = saves.notebook.read(id); return r && r.ok ? r : null; };
+  return m.initAI(c, {
+    build: buildFromAI, say: (t, w) => tools.say(t, w), icons: ICON, storage: store,
+    vo: () => { const id = saves.current(), r = id == null ? null : readVo(id); return r ? { id, note: r.note || '', name: r.name || '' } : null; },
+    coVo: id => !!readVo(id), maDe: () => code.text(), addLines: t => code.add(t),
+  });
+}
+riengConfig(fetch).then(c => c && import('./ai/ui.js').then(m => riengStart(c, m)))
+  .catch(() => { /* không nạp được giao diện AI: app vẫn chạy như thường */ });
+
+Promise.resolve(saves.boot()).finally(() => {
+  const old = plane2d.takeLegacy();
+  if (old && !plane2d.steps().length) { plane2d.load(old); dirty(); }
+});
+
+document.getElementById('btn-export').addEventListener('click', () => exporter.open());
+document.getElementById('unf-export').addEventListener('click', () => exporter.open());   // đang trải: xuất đúng hình trải
+Object.assign(window.SABCD.app, { state: { snapshot, apply: applyState }, saves });
+</script>
+
+<script>
+  // PWA: service worker cache toàn bộ app để chạy offline (cần https hoặc localhost).
+  // Có bản mới thì báo ở dòng hướng dẫn; bản mới dùng từ lần mở app kế tiếp, không tự tải lại giữa chừng.
+  if ('serviceWorker' in navigator) {
+    addEventListener('load', () => {
+      const had = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.register('./sw.js').catch(() => { /* không đăng ký được thì vẫn chạy online */ });
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (had) window.SABCD.app?.tools.say('Có bản S.ABCD mới. Đóng rồi mở lại app để dùng.');
+      });
+    });
+  }
+  // Nếu sau 8 giây chưa có canvas (không nạp được vendor/three), hiện thông báo
+  setTimeout(() => {
+    if (!document.querySelector('#stage canvas')) document.getElementById('err').style.display = 'grid';
+  }, 8000);
+</script>
+</body>
+</html>
