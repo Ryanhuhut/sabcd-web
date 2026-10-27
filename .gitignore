@@ -1,0 +1,13 @@
+
+# Đợt E: key API, kết quả chấm AI, ảnh
+*.env
+ai/.env
+!ai/.env.example
+ai/ket-qua/
+ai/anh/
+
+# Đợt F: cấu hình bật AI của bản riêng, bản build + file tự sinh của Worker riêng
+ai/rieng.json
+worker-rieng/dist/
+worker-rieng/sabcd-gom.js
+worker-rieng/.wrangler/
